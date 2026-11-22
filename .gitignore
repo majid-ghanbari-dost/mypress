@@ -1,0 +1,8 @@
+# MyPress — هرگز config و دیتابیس را کامیت نکنید
+config.php
+data/*.sqlite
+data/*.sqlite-journal
+data/installed.lock
+uploads/*
+!uploads/.htaccess
+!uploads/.gitkeep

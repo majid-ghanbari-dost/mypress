@@ -1,0 +1,22 @@
+# MyPress — Apache
+# دسترسی مستقیم به فایل‌های حساس را ببندید
+<FilesMatch "^(config\.php|install\.php)$">
+    # install.php بعد از نصب با قفل نصب محافظت می‌شود؛ این قانون فقط config را می‌بندد
+</FilesMatch>
+<Files "config.php">
+    Require all denied
+</Files>
+# اگر هاست Apache نیست، این فایل نادیده گرفته می‌شود؛ محافظت اصلی در کد است.
+Options -Indexes
+DirectoryIndex index.php
+# URL تمیز (اختیاری): /post/slug و /page/slug
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^post/([^/]+)/?$ index.php?post=$1 [L,QSA]
+    RewriteRule ^page/([^/]+)/?$ index.php?page=$1 [L,QSA]
+    RewriteRule ^product/([^/]+)/?$ index.php?product=$1 [L,QSA]
+    RewriteRule ^shop/?$ index.php?shop=1 [L,QSA]
+</IfModule>

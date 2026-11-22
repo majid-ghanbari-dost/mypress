@@ -1,0 +1,24 @@
+/* MyPress — قالب عمومی (بدون CDN، فقط CSS محلی) */
+* { box-sizing: border-box; }
+body { font-family: Tahoma, sans-serif; margin: 0; background: #f6f7f9; color: #222; line-height: 1.9; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+.site-header { background: #1e293b; color: #fff; padding: 20px 0; }
+.site-header a { color: #fff; text-decoration: none; }
+.logo { font-size: 28px; font-weight: bold; }
+.tagline { color: #cbd5e1; margin: 4px 0 12px; }
+.main-nav a { margin-inline-end: 16px; }
+.search-form { margin-top: 12px; }
+input, textarea, select { font-family: inherit; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; margin: 4px 0 12px; }
+button, .btn { background: #2563eb; color: #fff; border: 0; padding: 10px 18px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; }
+.btn-danger { background: #dc2626; }
+.post-card, .single, .product-card, .product-single, .comments, .comment { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+.meta { color: #64748b; font-size: 13px; }
+.price { color: #059669; font-weight: bold; font-size: 18px; }
+.products { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.product-card img, .product-single img { max-width: 100%; border-radius: 8px; }
+.table { width: 100%; border-collapse: collapse; background: #fff; }
+.table th, .table td { border: 1px solid #e2e8f0; padding: 8px; text-align: start; }
+.flash { padding: 10px; border-radius: 6px; margin: 12px 0; }
+.flash-ok { background: #dcfce7; } .flash-err { background: #fee2e2; }
+.site-footer { background: #1e293b; color: #cbd5e1; padding: 20px 0; margin-top: 32px; text-align: center; }
+.site-footer a { color: #fff; }
