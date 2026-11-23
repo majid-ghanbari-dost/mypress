@@ -4,7 +4,7 @@ DirectoryIndex index.php
 
 # Protect the live config and any installer temp/backup sibling (for example
 # config.php.installing) even if PHP execution is unavailable on the host.
-<FilesMatch "(?i)^config\\.php(?:\\..*)?$">
+<FilesMatch "(?i)^config\.php(?:\..*)?$">
     Require all denied
 </FilesMatch>
 
