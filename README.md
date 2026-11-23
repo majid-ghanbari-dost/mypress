@@ -36,6 +36,10 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 
 The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. The first MySQL schema initialization upgrades legacy MyISAM commerce tables to InnoDB and 64-bit money columns; the database account needs ALTER permission for this one-time migration. Never commit config.php, database files, backups, or uploaded customer data.
 
+## Deployment checklist
+
+Use [docs/deployment-checklist.md](docs/deployment-checklist.md) to verify hosting prerequisites, web-server protections, installation, functional acceptance and the production security gate. A deployment is not verified until these checks pass on the actual host.
+
 ## Backup and restore
 
 See [docs/backup-restore.md](docs/backup-restore.md) for SQLite restore, MySQL dump/import, JSON export limitations and the recovery checklist. The procedure must still be rehearsed against the actual hosting provider before production use.
