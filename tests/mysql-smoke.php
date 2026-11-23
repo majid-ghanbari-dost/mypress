@@ -55,6 +55,12 @@ $pdo->exec("CREATE TABLE order_items (
 // The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
 
+if (!mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo) ||
+    !mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo) ||
+    mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo)) {
+    throw new RuntimeException('MySQL public rate-limit upsert did not enforce its threshold');
+}
+
 $longTextTypes = $pdo->prepare(
     'SELECT data_type FROM information_schema.columns
      WHERE table_schema=DATABASE() AND table_name=? AND column_name=?'
