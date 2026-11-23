@@ -66,7 +66,7 @@ $adminIndexNames = [
     'idx_posts_type_created_id','idx_posts_author_type_created_id',
     'idx_posts_type_status_created_id','idx_posts_author_type_status_created_id','idx_posts_title_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
-    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
+    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id','idx_orders_status_created_id',
     'idx_users_username_created_id','idx_users_display_name_created_id','idx_users_email_created_id','idx_users_role_created_id',
     'idx_comments_status_created_id','idx_comments_author_created_id','idx_comments_email_created_id','idx_comments_post_status_created_id',
     'idx_media_filename_created_id','idx_media_original_name_created_id',
