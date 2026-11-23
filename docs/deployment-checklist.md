@@ -12,6 +12,8 @@ Use this checklist for a staging or production installation. Completing automate
 - [ ] Confirm PHP can write to `data/` and `uploads/` using the hosting account's normal owner/group permissions. Do not use world-writable permissions such as `777`.
 - [ ] Confirm upload limits are compatible with the application (image uploads are limited by the app to 2 MiB).
 - [ ] Disable public PHP error display and enable protected server-side error logging.
+- [ ] Verify responses include X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and the configured Content-Security-Policy.
+- [ ] Configure Strict-Transport-Security only on the HTTPS virtual host after confirming the entire site is HTTPS-ready.
 
 ## 2. Web server and filesystem protection
 
