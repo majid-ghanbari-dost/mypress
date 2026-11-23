@@ -30,7 +30,7 @@ function mp_list_posts(int $limit = 10, string $search = ''): array {
         $q = '%' . $search . '%';
         $st->execute([$q, $q, $limit]);
     } else {
-        $st = mp_pdo()->prepare("SELECT p.*, u.display_name AS author_name FROM posts p
+        $st = mp_pdo()->prepare("SELECT p.id, p.title, p.slug, p.excerpt, p.created_at, u.display_name AS author_name FROM posts p
             LEFT JOIN users u ON u.id=p.author_id
             WHERE p.type='post' AND p.status='published' ORDER BY p.created_at DESC LIMIT ?");
         $st->execute([$limit]);
