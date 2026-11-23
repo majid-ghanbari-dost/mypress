@@ -213,6 +213,8 @@ try {
     // Fresh install and one-time installer lock.
     $install = e2e_request($baseUrl, $cookieAdmin, 'GET', 'install.php');
     e2e_check($install['status'] === 200 && str_contains($install['body'], 'نصب MyPress'), 'Installer page is served over HTTP');
+    e2e_check(str_contains($install['body'], 'PHP 8.1+') && str_contains($install['body'], 'fileinfo') &&
+        str_contains($install['body'], 'PDO SQLite'), 'Installer displays runtime extension prerequisites');
     e2e_check(str_contains($install['headers'], 'X-Content-Type-Options: nosniff') &&
         str_contains($install['headers'], 'Content-Security-Policy:'), 'Installer sends baseline security headers');
     $installToken = e2e_csrf($install);
