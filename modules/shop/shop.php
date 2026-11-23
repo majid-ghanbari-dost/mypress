@@ -89,19 +89,18 @@ function mp_coupon(string $code): ?array {
 
 /**
  * The database is the source of truth for prices and stock at checkout.
- * Each conditional stock UPDATE must affect exactly one row or the whole order rolls back.
+ * Optional PDO injection makes the transaction testable without a live site database.
  */
-function mp_checkout(array $data): int {
+function mp_checkout(array $data, ?PDO $connection = null): int {
     $cart = mp_cart();
     if (!$cart) return 0;
-
     $name = trim((string)($data['customer_name'] ?? ''));
     $phone = trim((string)($data['customer_phone'] ?? ''));
     $address = trim((string)($data['customer_address'] ?? ''));
     if ($name === '' || strlen($name) > 150 || $phone === '' || strlen($phone) > 50 ||
         $address === '' || strlen($address) > 5000) return 0;
 
-    $pdo = mp_pdo();
+    $pdo = $connection ?? mp_pdo();
     try {
         $pdo->beginTransaction();
         $items = [];
@@ -121,16 +120,18 @@ function mp_checkout(array $data): int {
                 throw new RuntimeException('Insufficient stock');
             }
             $price = max(0, (int)$product['price']);
-            $lineTotal = $price * (int)$quantity;
-            if ($lineTotal < 0 || $total > PHP_INT_MAX - $lineTotal) {
-                throw new RuntimeException('Invalid order total');
+            $quantity = (int)$quantity;
+            if ($quantity < 1 || $price > intdiv(PHP_INT_MAX, $quantity)) {
+                throw new RuntimeException('Invalid order amount');
             }
+            $lineTotal = $price * $quantity;
+            if ($total > PHP_INT_MAX - $lineTotal) throw new RuntimeException('Order total overflow');
             $total += $lineTotal;
             $items[] = [
                 'id' => (int)$product['id'],
                 'name' => (string)$product['name'],
                 'price' => $price,
-                'qty' => (int)$quantity,
+                'qty' => $quantity,
             ];
         }
         if (!$items) throw new RuntimeException('Empty order');
@@ -145,7 +146,8 @@ function mp_checkout(array $data): int {
             $coupon = $couponStatement->fetch();
             if ($coupon && (empty($coupon['expires_at']) || $coupon['expires_at'] >= date('Y-m-d'))) {
                 $percent = max(0, min(100, (int)$coupon['percent']));
-                $discount = (int)round($total * $percent / 100);
+                $discount = intdiv($total, 100) * $percent +
+                    (int)round(($total % 100) * $percent / 100);
             } else {
                 $code = '';
             }
@@ -174,6 +176,47 @@ function mp_checkout(array $data): int {
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         return 0;
+    }
+}
+
+/**
+ * Order cancellation is idempotent. Shipped orders cannot be cancelled automatically,
+ * and a cancelled order cannot be reopened (which could double-restore stock).
+ */
+function mp_update_order_status(int $orderId, string $requested, ?PDO $connection = null): bool {
+    if ($orderId < 1 || !in_array($requested, ['new','processing','shipped','cancelled'], true)) return false;
+    $pdo = $connection ?? mp_pdo();
+    try {
+        $pdo->beginTransaction();
+        $sql = 'SELECT id,status FROM orders WHERE id=?';
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $sql .= ' FOR UPDATE';
+        $find = $pdo->prepare($sql);
+        $find->execute([$orderId]);
+        $order = $find->fetch();
+        if (!$order) throw new RuntimeException('Order not found');
+
+        if ($order['status'] === 'cancelled') {
+            if ($requested !== 'cancelled') throw new RuntimeException('Cancelled order is terminal');
+            $pdo->commit();
+            return true;
+        }
+        if ($order['status'] === 'shipped' && $requested === 'cancelled') {
+            throw new RuntimeException('Shipped order cannot be auto-cancelled');
+        }
+        if ($requested === 'cancelled') {
+            $items = $pdo->prepare('SELECT product_id,qty FROM order_items WHERE order_id=?');
+            $items->execute([$orderId]);
+            $restore = $pdo->prepare('UPDATE products SET stock=stock+? WHERE id=?');
+            foreach ($items->fetchAll() as $item) {
+                $restore->execute([(int)$item['qty'], (int)$item['product_id']]);
+            }
+        }
+        $pdo->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$requested, $orderId]);
+        $pdo->commit();
+        return true;
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        return false;
     }
 }
 

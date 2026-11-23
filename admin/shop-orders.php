@@ -1,5 +1,5 @@
 <?php
-// Order management with stock restoration on cancellation.
+// Order management delegates all state transitions to the shop domain service.
 require_once __DIR__ . '/../includes/init.php';
 require_once __DIR__ . '/../includes/admin-layout.php';
 require_once __DIR__ . '/../modules/shop/shop.php';
@@ -8,41 +8,9 @@ $pdo = mp_pdo();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['status'])) {
     mp_csrf_check();
-    $orderId = (int)$_POST['order_id'];
-    $requested = (string)$_POST['status'];
-    if (!in_array($requested, ['new','processing','shipped','cancelled'], true)) {
-        mp_flash('وضعیت سفارش معتبر نیست.', 'err');
-        mp_redirect('shop-orders.php');
-    }
-    try {
-        $pdo->beginTransaction();
-        $sql = 'SELECT id,status FROM orders WHERE id=?';
-        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $sql .= ' FOR UPDATE';
-        $find = $pdo->prepare($sql);
-        $find->execute([$orderId]);
-        $order = $find->fetch();
-        if (!$order) throw new RuntimeException('Order not found');
-        if ($order['status'] === 'cancelled' && $requested !== 'cancelled') {
-            throw new RuntimeException('Cancelled orders are terminal');
-        }
-        if ($order['status'] === 'shipped' && $requested === 'cancelled') {
-            throw new RuntimeException('Shipped orders cannot be cancelled automatically');
-        }
-        if ($order['status'] !== 'cancelled' && $requested === 'cancelled') {
-            $items = $pdo->prepare('SELECT product_id,qty FROM order_items WHERE order_id=?');
-            $items->execute([$orderId]);
-            $restore = $pdo->prepare('UPDATE products SET stock=stock+? WHERE id=?');
-            foreach ($items->fetchAll() as $item) {
-                $restore->execute([(int)$item['qty'], (int)$item['product_id']]);
-            }
-        }
-        $pdo->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$requested, $orderId]);
-        $pdo->commit();
-        mp_flash('وضعیت سفارش به‌روزرسانی شد.');
-    } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        mp_flash('تغییر وضعیت سفارش انجام نشد؛ سفارش ارسال‌شده یا لغوشده قابل لغو/بازگشایی خودکار نیست.', 'err');
-    }
+    $ok = mp_update_order_status((int)$_POST['order_id'], (string)$_POST['status'], $pdo);
+    mp_flash($ok ? 'وضعیت سفارش به‌روزرسانی شد.' :
+        'تغییر وضعیت سفارش انجام نشد؛ سفارش ارسال‌شده یا لغوشده قابل لغو/بازگشایی خودکار نیست.', $ok ? 'ok' : 'err');
     mp_redirect('shop-orders.php');
 }
 

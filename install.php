@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 $root = __DIR__;
 $configFile = $root . '/config.php';
 $lockFile = $root . '/data/installed.lock';
-if (file_exists($configFile) && file_exists($lockFile)) {
+if (file_exists($configFile) || file_exists($lockFile)) {
     http_response_code(403);
     exit('MyPress قبلاً نصب شده است. برای نصب مجدد، ابتدا از اطلاعات نسخه فعلی پشتیبان تهیه کنید.');
 }
