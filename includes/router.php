@@ -21,8 +21,9 @@ function mp_get_post(string $slug, string $type = 'post'): ?array {
     return $st->fetch() ?: null;
 }
 function mp_list_posts(int $limit = 10, string $search = ''): array {
+    $limit = max(1, min(100, $limit));
     if ($search !== '') {
-        $st = mp_pdo()->prepare("SELECT p.*, u.display_name AS author_name FROM posts p
+        $st = mp_pdo()->prepare("SELECT p.id, p.title, p.slug, p.excerpt, p.created_at, u.display_name AS author_name FROM posts p
             LEFT JOIN users u ON u.id=p.author_id
             WHERE p.type='post' AND p.status='published' AND (p.title LIKE ? OR p.content LIKE ?)
             ORDER BY p.created_at DESC LIMIT ?");
