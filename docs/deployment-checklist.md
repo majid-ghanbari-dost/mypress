@@ -10,6 +10,7 @@ Use this checklist for a staging or production installation. Completing automate
 - [ ] Enable `fileinfo` for server-side image MIME validation.
 - [ ] Confirm the host supports HTTPS and issue a valid certificate before installation.
 - [ ] Confirm PHP can write to `data/` and `uploads/` using the hosting account's normal owner/group permissions. Do not use world-writable permissions such as `777`.
+- [ ] If the site is behind a reverse proxy/CDN, configure the web server to populate `REMOTE_ADDR` from trusted proxy ranges. Do not trust arbitrary client-supplied `X-Forwarded-For` values.
 - [ ] Confirm upload limits are compatible with the application (image uploads are limited by the app to 2 MiB).
 - [ ] Disable public PHP error display and enable protected server-side error logging.
 - [ ] Verify responses include X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and the configured Content-Security-Policy.
@@ -47,6 +48,7 @@ Use this checklist for a staging or production installation. Completing automate
 - [ ] Create, edit, publish and unpublish a test post.
 - [ ] Create an author account; confirm the author can only manage their own drafts and cannot access editor/admin functions.
 - [ ] Upload a valid image and confirm a fake image/PHP file is rejected.
+- [ ] Confirm public comment throttling (5 per client IP per 15 minutes and 10 per email per 24 hours) and COD order throttling (5 per client IP per 15 minutes and 5 per phone number per 24 hours) are suitable for the store's expected traffic.
 - [ ] Create a product with a known price and stock count.
 - [ ] Place a COD test order and verify the total is recalculated by the server.
 - [ ] Move the order from new to processing, then shipped; verify invalid backward transitions are rejected.
