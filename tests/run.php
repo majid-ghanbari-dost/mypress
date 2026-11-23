@@ -95,9 +95,9 @@ $adminId = (int)$pdo->lastInsertId();
 $largePostBody = str_repeat('p', 100000);
 $pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','published',?)")
     ->execute(['List projection test', 'list-projection-test', $largePostBody, $adminId]);
-$listedPosts = mp_list_posts(10);
+$listedPosts = mp_list_posts(10, '', $pdo);
 check($listedPosts && !array_key_exists('content', $listedPosts[0]), 'Public post listings do not hydrate full content bodies');
-check(strlen((string)mp_get_post('list-projection-test')['content']) === 100000, 'Single-post detail still loads full content');
+check(strlen((string)mp_get_post('list-projection-test', 'post', $pdo)['content']) === 100000, 'Single-post detail still loads full content');
 check(!mp_delete_user($pdo, $adminId, $adminId), 'Administrator cannot delete own account');
 check(!mp_delete_user($pdo, $adminId, 999), 'Last administrator account cannot be deleted');
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
@@ -121,9 +121,9 @@ $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Test','
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Second','second-product',200,2,'published')");
 mp_session_start();
 $_SESSION['cart'] = [1 => 2];
-$productListings = mp_list_products(10);
+$productListings = mp_list_products(10, $pdo);
 check($productListings && !array_key_exists('description', $productListings[0]), 'Product listings do not hydrate full descriptions');
-$cartItems = mp_cart_items();
+$cartItems = mp_cart_items($pdo);
 check($cartItems && !array_key_exists('description', $cartItems[0]), 'Cart item queries load only fields needed by checkout');
 $largeCart = [];
 for ($cartId = 1; $cartId <= 105; $cartId++) $largeCart[$cartId] = 1;
