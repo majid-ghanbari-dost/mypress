@@ -29,15 +29,17 @@ $migration = $pdo->prepare('SELECT COUNT(*) FROM schema_migrations WHERE version
 $migration->execute(['mysql-commerce-engine-money-v1']);
 if ((int)$migration->fetchColumn() !== 1) throw new RuntimeException('Money column migration was not recorded');
 
-$columns = $pdo->query(
-    "SELECT table_name,column_name,data_type FROM information_schema.columns
-     WHERE table_schema=DATABASE() AND ((table_name='products' AND column_name='price')
-     OR (table_name='orders' AND column_name='total')
-     OR (table_name='order_items' AND column_name='price'))"
-)->fetchAll();
-foreach ($columns as $column) {
-    if (strtolower($column['data_type']) !== 'bigint') {
-        throw new RuntimeException('Expected BIGINT for ' . $column['table_name'] . '.' . $column['column_name']);
+foreach ([
+    ['products','price'],
+    ['orders','total'],
+    ['order_items','price'],
+] as [$tableName,$columnName]) {
+    $typeQuery = $pdo->prepare(
+        'SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $typeQuery->execute([$tableName,$columnName]);
+    if (strtolower((string)$typeQuery->fetchColumn()) !== 'bigint') {
+        throw new RuntimeException('Expected BIGINT for ' . $tableName . '.' . $columnName);
     }
 }
 
@@ -61,13 +63,13 @@ if ((int)$pdo->query('SELECT stock FROM products WHERE id=' . $productId)->fetch
     throw new RuntimeException('MySQL cancellation did not restore stock');
 }
 
-$engines = $pdo->query(
-    "SELECT table_name,engine FROM information_schema.tables
-     WHERE table_schema=DATABASE() AND table_name IN ('products','orders','order_items')"
-)->fetchAll();
-foreach ($engines as $table) {
-    if (strtolower((string)$table['engine']) !== 'innodb') {
-        throw new RuntimeException('Expected InnoDB engine for ' . $table['table_name']);
+foreach (['products','orders','order_items'] as $tableName) {
+    $engineQuery = $pdo->prepare(
+        'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?'
+    );
+    $engineQuery->execute([$tableName]);
+    if (strtolower((string)$engineQuery->fetchColumn()) !== 'innodb') {
+        throw new RuntimeException('Expected InnoDB engine for ' . $tableName);
     }
 }
 
