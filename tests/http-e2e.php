@@ -349,6 +349,8 @@ try {
     $commentProbe = $commentDbProbe->prepare("SELECT COUNT(*) FROM comments WHERE author=? AND status='pending'");
     $commentProbe->execute(['HTTP Commenter']);
     e2e_check((int)$commentProbe->fetchColumn() === 5, 'Public comment rate limit prevents the sixth pending comment');
+    $commentProbe->closeCursor();
+    $commentDbProbe = null;
 
     $adminIdForFixtures = 0;
     $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
