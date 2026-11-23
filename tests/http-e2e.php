@@ -372,6 +372,11 @@ try {
     e2e_check(substr_count($productsListOne['body'], '<tr>') - 1 === 25 && str_contains($productsListOne['body'], 'صفحه 1 از 2'), 'Product administration paginates its first 25 records');
     $productsListTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php?page=2');
     e2e_check(substr_count($productsListTwo['body'], '<tr>') - 1 === 2, 'Product administration renders only remaining records on page two');
+    $filteredProducts = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php?q=Product+Fixture+1&status=draft&stock=low');
+    e2e_check($filteredProducts['status'] === 200 && substr_count($filteredProducts['body'], '<tr>') - 1 === 11, 'Product search, archived status and low-stock filters compose correctly');
+    e2e_check(str_contains($filteredProducts['body'], 'Product Fixture 1') && str_contains($filteredProducts['body'], 'name="stock"'), 'Product filter results and controls are rendered');
+    $noMatchProducts = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php?q=NoSuchProduct&status=published');
+    e2e_check($noMatchProducts['status'] === 200 && substr_count($noMatchProducts['body'], '<tr>') === 1, 'Product filters handle empty results without breaking the table');
 
     $cartAdd = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?cart=1', [
         'csrf' => e2e_csrf($publicProduct),
