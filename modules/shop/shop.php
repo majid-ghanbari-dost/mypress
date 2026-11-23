@@ -48,6 +48,10 @@ function mp_cart_add(int $productId, int $qty = 1): void {
     $product = $statement->fetch();
     if (!$product || (int)$product['stock'] < 1) return;
     $cart = mp_cart();
+    if (!isset($cart[$productId]) && count($cart) >= 100) {
+        mp_flash('سبد خرید نمی‌تواند بیش از ۱۰۰ محصول متفاوت داشته باشد.', 'err');
+        return;
+    }
     $cart[$productId] = min((int)$product['stock'], 99, ($cart[$productId] ?? 0) + $qty);
     $_SESSION['cart'] = $cart;
 }
