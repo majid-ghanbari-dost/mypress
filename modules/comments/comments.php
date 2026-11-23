@@ -35,6 +35,12 @@ function mp_add_comment(int $postId, string $author, string $email, string $cont
     $post->execute([$postId]);
     if (!$post->fetchColumn()) return false;
 
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    if (!mp_public_rate_limit('comment-ip', $ip, 5, 900) ||
+        !mp_public_rate_limit('comment-email', strtolower($email), 10, 86400)) {
+        return false;
+    }
+
     $statement = mp_pdo()->prepare(
         "INSERT INTO comments (post_id,author,email,content,status) VALUES (?,?,?,?,'pending')"
     );
