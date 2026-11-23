@@ -15,7 +15,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 ## Included capabilities
 
 - Posts and pages with draft/published workflow
-- Admin, editor and author roles; authors are limited to their own drafts
+- Admin, editor and author roles; authors are limited to their own drafts and see only their own dashboard metrics
 - CSRF protection and hardened session cookies
 - Login throttling (10 failed attempts per username/IP and 30 per IP in 15 minutes)
 - Image upload validation by file bytes, MIME and dimensions
