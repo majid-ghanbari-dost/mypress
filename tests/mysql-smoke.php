@@ -28,7 +28,16 @@ foreach ([['posts', 'content'], ['products', 'description']] as [$table, $column
     }
 }
 
-// Simulate a MyPress 1.0 database: legacy 32-bit money columns on MyISAM tables.
+// Simulate a MyPress 1.0 database with legacy TEXT content and 32-bit money columns.
+$pdo->exec("CREATE TABLE posts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
+    content TEXT NOT NULL, excerpt VARCHAR(500) DEFAULT '',
+    type VARCHAR(20) NOT NULL DEFAULT 'post', status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    category_id INT DEFAULT NULL, tags VARCHAR(255) DEFAULT '',
+    author_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB");
 $pdo->exec("CREATE TABLE products (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL, slug VARCHAR(191) NOT NULL UNIQUE,
@@ -118,6 +127,11 @@ if ((int)$postTitlePrefix->fetchColumn() !== 191) {
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
 $adminId = (int)$pdo->lastInsertId();
+$longBody = str_repeat('x', 100000);
+$pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','draft',?)")
+    ->execute(['Large content test', 'large-content-test', $longBody, $adminId]);
+$pdo->prepare("INSERT INTO products (name,slug,description,price,stock,status) VALUES (?,?,?,0,0,'draft')")
+    ->execute(['Large description test', 'large-description-test', $longBody]);
 if (mp_delete_user($pdo, $adminId, $adminId)) {
     throw new RuntimeException('Administrator self-deletion unexpectedly succeeded');
 }
