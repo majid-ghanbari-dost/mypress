@@ -15,6 +15,56 @@ function mp_security_headers(): void {
     header("Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
 }
 
+/**
+ * Atomically count a privacy-preserving public action in a fixed time window.
+ * Only HMAC digests are stored; raw IP addresses and contact details are not persisted.
+ */
+function mp_public_rate_limit(string $action, string $identity, int $limit, int $windowSeconds, ?PDO $connection = null): bool {
+    if (!preg_match('/^[a-z0-9_-]{1,32}$/', $action) || $identity === '' || $limit < 1 || $windowSeconds < 1) {
+        return false;
+    }
+
+    try {
+        $pdo = $connection ?? mp_pdo();
+        $config = mp_config();
+        $secret = (string)($config['secret_key'] ?? '');
+        $secret = $secret !== '' ? $secret : __FILE__;
+        $subjectKey = hash_hmac('sha256', strtolower(trim($identity)), $secret);
+        $windowStart = intdiv(time(), $windowSeconds) * $windowSeconds;
+
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $statement = $pdo->prepare(
+                'INSERT INTO public_rate_limits (action_key,subject_key,window_start,attempts)
+                 VALUES (?,?,?,1)
+                 ON DUPLICATE KEY UPDATE attempts=attempts+1'
+            );
+        } else {
+            $statement = $pdo->prepare(
+                'INSERT INTO public_rate_limits (action_key,subject_key,window_start,attempts)
+                 VALUES (?,?,?,1)
+                 ON CONFLICT(action_key,subject_key,window_start)
+                 DO UPDATE SET attempts=attempts+1'
+            );
+        }
+        $statement->execute([$action, $subjectKey, $windowStart]);
+
+        $count = $pdo->prepare(
+            'SELECT attempts FROM public_rate_limits WHERE action_key=? AND subject_key=? AND window_start=?'
+        );
+        $count->execute([$action, $subjectKey, $windowStart]);
+        $allowed = (int)$count->fetchColumn() <= $limit;
+
+        // Keep only a short operational history; this predicate is indexed.
+        $cleanup = $pdo->prepare('DELETE FROM public_rate_limits WHERE window_start < ?');
+        $cleanup->execute([time() - 172800]);
+        return $allowed;
+    } catch (Throwable $exception) {
+        // Fail closed: if abuse protection cannot be evaluated, do not accept the action.
+        error_log('MyPress public rate limit check failed: ' . $exception->getMessage());
+        return false;
+    }
+}
+
 function mp_redirect(string $url): void {
     header('Location: ' . $url, true, 303);
     exit;
