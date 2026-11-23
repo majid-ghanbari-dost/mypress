@@ -72,7 +72,8 @@ if ((int)$orderItemIndex->fetchColumn() !== 1) {
 $adminIndexNames = [
     'idx_posts_type_created_id','idx_posts_author_type_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
-    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
+    'idx_products_created_id','idx_products_status_created_id',
+    'idx_products_name_created_id','idx_products_stock_created_id','idx_orders_created_id',
     'idx_orders_customer_name_created_id','idx_orders_customer_phone_created_id',
 ];
 $adminIndexQuery = $pdo->prepare(
@@ -82,6 +83,15 @@ $adminIndexQuery = $pdo->prepare(
 $adminIndexQuery->execute($adminIndexNames);
 if ((int)$adminIndexQuery->fetchColumn() !== count($adminIndexNames)) {
     throw new RuntimeException('Expected all admin query indexes on MySQL');
+}
+$productNamePrefix = $pdo->prepare(
+    "SELECT sub_part FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND table_name='products'
+       AND index_name='idx_products_name_created_id' AND column_name='name'"
+);
+$productNamePrefix->execute();
+if ((int)$productNamePrefix->fetchColumn() !== 191) {
+    throw new RuntimeException('Expected a 191-character prefix index for product names on MySQL');
 }
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")

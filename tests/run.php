@@ -75,6 +75,10 @@ $adminIndexCountAgain = (int)$pdo->query(
     "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('" . implode("','", $adminIndexNames) . "')"
 )->fetchColumn();
 check($adminIndexCountAgain === count($adminIndexNames), 'Admin query index migration is idempotent');
+$productFilterIndexes = (int)$pdo->query(
+    "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_products_name_created_id','idx_products_stock_created_id')"
+)->fetchColumn();
+check($productFilterIndexes === 2, 'Product search and stock indexes are installed on SQLite');
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);

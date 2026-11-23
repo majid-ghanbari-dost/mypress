@@ -49,20 +49,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $perPage = 25;
-$totalRows = (int)$pdo->query('SELECT COUNT(*) FROM products')->fetchColumn();
+$search = trim((string)($_GET['q'] ?? ''));
+if (strlen($search) > 400) {
+    http_response_code(400);
+    exit('عبارت جست‌وجو بیش از حد طولانی است.');
+}
+$allowedStatuses = ['published', 'draft'];
+$status = (string)($_GET['status'] ?? 'all');
+if (!in_array($status, $allowedStatuses, true)) $status = 'all';
+$allowedStockFilters = ['out', 'low', 'available'];
+$stockFilter = (string)($_GET['stock'] ?? 'all');
+if (!in_array($stockFilter, $allowedStockFilters, true)) $stockFilter = 'all';
+
+$where = [];
+$params = [];
+if ($search !== '') {
+    $where[] = '(p.name LIKE ? OR p.slug LIKE ?)';
+    $params[] = $search . '%';
+    $params[] = $search . '%';
+}
+if ($status !== 'all') {
+    $where[] = 'p.status = ?';
+    $params[] = $status;
+}
+if ($stockFilter === 'out') {
+    $where[] = 'p.stock = 0';
+} elseif ($stockFilter === 'low') {
+    $where[] = 'p.stock BETWEEN 1 AND 5';
+} elseif ($stockFilter === 'available') {
+    $where[] = 'p.stock > 5';
+}
+$whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+$countQuery = $pdo->prepare('SELECT COUNT(*) FROM products p' . $whereSql);
+$countQuery->execute($params);
+$totalRows = (int)$countQuery->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-$productQuery = $pdo->prepare('SELECT p.*,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
-$productQuery->bindValue(1, $perPage, PDO::PARAM_INT);
-$productQuery->bindValue(2, $offset, PDO::PARAM_INT);
+$productQuery = $pdo->prepare('SELECT p.*,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id' . $whereSql . ' ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
+foreach ($params as $index => $value) {
+    $productQuery->bindValue($index + 1, $value, PDO::PARAM_STR);
+}
+$productQuery->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
+$productQuery->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
 $productQuery->execute();
 $rows = $productQuery->fetchAll();
+$paginationQuery = [];
+if ($search !== '') $paginationQuery['q'] = $search;
+if ($status !== 'all') $paginationQuery['status'] = $status;
+if ($stockFilter !== 'all') $paginationQuery['stock'] = $stockFilter;
 $categories = $pdo->query("SELECT * FROM categories WHERE type='product' ORDER BY name")->fetchAll();
 $coupons = $pdo->query('SELECT * FROM coupons ORDER BY code')->fetchAll();
 mp_admin_header(t('products'), $user);
-mp_admin_pagination($page, $totalPages, 'shop-products.php');
 ?>
+<form method="get" action="shop-products.php" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 20px">
+<label>جست‌وجوی محصول <input type="search" name="q" maxlength="100" value="<?= e($search) ?>" placeholder="نام یا اسلاگ محصول"></label>
+<label>وضعیت <select name="status" style="width:auto">
+<option value="all" <?= $status === 'all' ? 'selected' : '' ?>>همه وضعیت‌ها</option>
+<option value="published" <?= $status === 'published' ? 'selected' : '' ?>>فعال</option>
+<option value="draft" <?= $status === 'draft' ? 'selected' : '' ?>>بایگانی</option>
+</select></label>
+<label>موجودی <select name="stock" style="width:auto">
+<option value="all" <?= $stockFilter === 'all' ? 'selected' : '' ?>>همه موجودی‌ها</option>
+<option value="out" <?= $stockFilter === 'out' ? 'selected' : '' ?>>ناموجود</option>
+<option value="low" <?= $stockFilter === 'low' ? 'selected' : '' ?>>کم (۱ تا ۵)</option>
+<option value="available" <?= $stockFilter === 'available' ? 'selected' : '' ?>>کافی (بیش از ۵)</option>
+</select></label>
+<button class="btn btn-small" type="submit">اعمال فیلتر</button>
+<a href="shop-products.php">پاک‌کردن</a>
+</form>
+<?php mp_admin_pagination($page, $totalPages, 'shop-products.php', $paginationQuery); ?>
 <form method="post" enctype="multipart/form-data"><?= mp_csrf_field() ?>
 <label>نام محصول <input name="name" required maxlength="255"></label>
 <label>قیمت (تومان) <input type="number" name="price" min="0" value="0" dir="ltr"></label>
@@ -75,7 +131,7 @@ mp_admin_pagination($page, $totalPages, 'shop-products.php');
 <?php foreach ($rows as $row): ?><tr><td><?= e($row['name']) ?></td><td><?= mp_price((int)$row['price']) ?></td><td><?= (int)$row['stock'] ?></td><td><?= e($row['cat_name'] ?? '') ?></td><td><?= $row['status']==='published'?'فعال':'بایگانی' ?></td>
 <td><?php if ($row['status']==='published'): ?><a href="../index.php?product=<?= rawurlencode((string)$row['slug']) ?>" target="_blank" rel="noopener">مشاهده</a>
 <form method="post" style="display:inline" data-confirm="محصول از فروشگاه خارج شود؟"><?= mp_csrf_field() ?><input type="hidden" name="delete_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-danger btn-small" type="submit">بایگانی</button></form><?php endif; ?></td></tr><?php endforeach; ?></table>
-<?php mp_admin_pagination($page, $totalPages, 'shop-products.php'); ?>
+<?php mp_admin_pagination($page, $totalPages, 'shop-products.php', $paginationQuery); ?>
 <h2>کدهای تخفیف</h2>
 <form method="post"><?= mp_csrf_field() ?>
 <label>کد <input name="coupon_code" dir="ltr" required></label>

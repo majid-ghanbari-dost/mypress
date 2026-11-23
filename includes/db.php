@@ -51,19 +51,28 @@ function mp_index_exists(PDO $pdo, string $tableName, string $indexName): bool {
 }
 
 function mp_ensure_index(PDO $pdo, string $tableName, string $indexName, string $columns): void {
-    $columnNames = array_map('trim', explode(',', $columns));
-    if (!$columnNames || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName) ||
+    $columnSpecs = array_map('trim', explode(',', $columns));
+    if (!$columnSpecs || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName) ||
         !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $indexName)) {
         throw new InvalidArgumentException('Invalid index definition.');
     }
-    foreach ($columnNames as $columnName) {
-        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $columnName)) {
+    $mysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
+    $columnDefinitions = [];
+    foreach ($columnSpecs as $columnSpec) {
+        if (!preg_match('/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\\(([1-9][0-9]*)\\))?$/', $columnSpec, $matches)) {
             throw new InvalidArgumentException('Invalid index column.');
         }
+        $columnName = $matches[1];
+        $prefixLength = isset($matches[2]) ? (int)$matches[2] : null;
+        if ($prefixLength !== null && $prefixLength > 191) {
+            throw new InvalidArgumentException('Index column prefix is too long.');
+        }
+        // SQLite has no MySQL-style prefix indexes; index the whole column.
+        $columnDefinitions[] = $columnName . ($mysql && $prefixLength !== null ? '(' . $prefixLength . ')' : '');
     }
     if (mp_index_exists($pdo, $tableName, $indexName)) return;
     try {
-        $pdo->exec("CREATE INDEX {$indexName} ON {$tableName} (" . implode(', ', $columnNames) . ')');
+        $pdo->exec("CREATE INDEX {$indexName} ON {$tableName} (" . implode(', ', $columnDefinitions) . ')');
     } catch (PDOException $exception) {
         // Another request may have created the index after the existence check.
         if (!mp_index_exists($pdo, $tableName, $indexName)) throw $exception;
@@ -108,7 +117,7 @@ function mp_ensure_security_schema(PDO $pdo): void {
 
     // Cover the stable sort/filter patterns used by high-volume admin screens
     // and the public product listing. This migration runs once per installation.
-    $adminIndexMigration = 'admin-list-indexes-v2';
+    $adminIndexMigration = 'admin-list-indexes-v4';
     $adminIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
     $adminIndexCheck->execute([$adminIndexMigration]);
     if (!$adminIndexCheck->fetchColumn() && mp_table_exists($pdo, 'posts')) {
@@ -127,6 +136,8 @@ function mp_ensure_security_schema(PDO $pdo): void {
             'products' => [
                 'idx_products_created_id' => 'created_at, id',
                 'idx_products_status_created_id' => 'status, created_at, id',
+                'idx_products_name_created_id' => 'name(191), created_at, id',
+                'idx_products_stock_created_id' => 'stock, created_at, id',
             ],
             'orders' => [
                 'idx_orders_created_id' => 'created_at, id',
