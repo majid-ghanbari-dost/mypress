@@ -15,7 +15,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 ## Included capabilities
 
 - Posts and pages with draft/published workflow
-- Admin, editor and author roles; authors are limited to their own drafts and see only their own dashboard metrics
+- Admin, editor and author roles; authors are limited to their own drafts and see only their own dashboard metrics; self-deletion and deletion of the final administrator are blocked transactionally
 - CSRF protection and hardened session cookies
 - Login throttling (10 failed attempts per username/IP and 30 per IP in 15 minutes)
 - Image upload validation by file bytes, MIME and dimensions
@@ -45,7 +45,7 @@ The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does n
     find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
     php tests/run.php
 
-GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables. The SQLite smoke suite covers role ownership, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The installer is structured to avoid MySQL's implicit-commit behavior around DDL.
+GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The installer is structured to avoid MySQL's implicit-commit behavior around DDL.
 
 ## Important limitations before production use
 
