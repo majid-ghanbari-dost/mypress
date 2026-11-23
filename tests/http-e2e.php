@@ -512,7 +512,7 @@ try {
     $usersPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/users.php');
     e2e_check(substr_count($usersPageOne['body'], '<tr>') - 1 === 25 && str_contains($usersPageOne['body'], 'صفحه 1 از 2'), 'User administration paginates its first 25 records');
     $usersPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/users.php?page=2');
-    e2e_check(substr_count($usersPageTwo['body'], '<tr>') - 1 === 1, 'User administration renders only the remaining record on page two');
+    e2e_check(substr_count($usersPageTwo['body'], '<tr>') - 1 === 2, 'User administration renders the remaining two records on page two');
     $filteredUsers = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/users.php?q=Fixture+User&role=author');
     e2e_check($filteredUsers['status'] === 200 && substr_count($filteredUsers['body'], '<tr>') - 1 === 25, 'User prefix search and author role filter return matching records');
     e2e_check(str_contains($filteredUsers['body'], 'q=Fixture+User') && str_contains($filteredUsers['body'], 'role=author'), 'User pagination preserves search and role filters');
