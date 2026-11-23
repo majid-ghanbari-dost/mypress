@@ -297,6 +297,19 @@ try {
     $publicPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
     e2e_check($publicPost['status'] === 200 && str_contains($publicPost['body'], 'Rendered through the public HTTP route.'), 'Newly published post is rendered publicly');
 
+    $adminIdForFixtures = 0;
+    $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
+    $fixtureDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $adminIdForFixtures = (int)$fixtureDb->query("SELECT id FROM users WHERE username='e2e-admin'")->fetchColumn();
+    $postFixture = $fixtureDb->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','draft',?)");
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
+        $postFixture->execute(['Post Fixture ' . $fixture, 'post-fixture-' . $fixture, 'Fixture body', $adminIdForFixtures]);
+    }
+    $postsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php');
+    e2e_check(substr_count($postsPageOne['body'], '<tr>') - 1 === 25 && str_contains($postsPageOne['body'], 'صفحه 1 از 2'), 'Post administration paginates the first 25 records');
+    $postsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?page=2');
+    e2e_check(substr_count($postsPageTwo['body'], '<tr>') - 1 === 3 && str_contains($postsPageTwo['body'], 'صفحه 2 از 2'), 'Post administration paginates remaining records');
+
     // Real multipart upload plus rejection of a PHP file disguised as an image.
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
     $imagePath = $tempRoot . '/valid.png';
@@ -310,6 +323,15 @@ try {
     $uploadedFiles = array_values(array_filter($uploadedFiles ?: [], 'is_file'));
     e2e_check(count($uploadedFiles) === 1 && preg_match('/^[a-f0-9]{32}\.png$/', basename($uploadedFiles[0]) ) === 1, 'Uploaded image is stored under a random non-user-controlled filename');
 
+    $mediaFixture = $fixtureDb->prepare('INSERT INTO media (filename,original_name,mime,size,uploaded_by) VALUES (?,?,?,?,?)');
+    for ($fixture = 1; $fixture <= 25; $fixture++) {
+        $mediaFixture->execute([basename($uploadedFiles[0]), 'fixture-' . $fixture . '.png', 'image/png', 68, $adminIdForFixtures]);
+    }
+    $mediaListPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
+    e2e_check(substr_count($mediaListPageOne['body'], '<tr>') - 1 === 25 && str_contains($mediaListPageOne['body'], 'صفحه 1 از 2'), 'Media library paginates its first 25 records');
+    $mediaListPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?page=2');
+    e2e_check(substr_count($mediaListPageTwo['body'], '<tr>') - 1 === 1, 'Media library renders only the remaining record on page two');
+
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
     $fakePath = $tempRoot . '/fake.php';
     file_put_contents($fakePath, '<?php echo "not an image";');
@@ -319,7 +341,7 @@ try {
     ]);
     e2e_check($fakeUpload['status'] === 303, 'Invalid upload is handled without crashing the HTTP route');
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
-    e2e_check(substr_count($mediaPage['body'], '<tr>') === 2, 'Invalid PHP disguised as an image is not added to the media library');
+    e2e_check(substr_count($mediaPage['body'], '<tr>') === 26, 'Invalid PHP disguised as an image is not added to the media library');
 
     // Public shop journey: create product, add to cart and place a COD order.
     $productsPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php');
@@ -334,6 +356,15 @@ try {
     e2e_check($createdProduct['status'] === 303, 'Administrator can create a shop product');
     $publicProduct = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?product=HTTP-E2E-Product');
     e2e_check($publicProduct['status'] === 200 && str_contains($publicProduct['body'], 'HTTP E2E Product'), 'Created product is publicly visible');
+
+    $productFixture = $fixtureDb->prepare("INSERT INTO products (name,slug,description,price,stock,status) VALUES (?,?,?,1000,1,'draft')");
+    for ($fixture = 1; $fixture <= 25; $fixture++) {
+        $productFixture->execute(['Product Fixture ' . $fixture, 'product-fixture-' . $fixture, 'Fixture product']);
+    }
+    $productsListOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php');
+    e2e_check(substr_count($productsListOne['body'], '<tr>') - 1 === 25 && str_contains($productsListOne['body'], 'صفحه 1 از 2'), 'Product administration paginates its first 25 records');
+    $productsListTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php?page=2');
+    e2e_check(substr_count($productsListTwo['body'], '<tr>') - 1 === 2, 'Product administration renders only remaining records on page two');
 
     $cartAdd = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?cart=1', [
         'csrf' => e2e_csrf($publicProduct),
@@ -393,6 +424,16 @@ try {
     e2e_check($ordersPageTwo['status'] === 200 && substr_count($ordersPageTwo['body'], '<div class="post-card">') === 2, 'Order administration renders only remaining records on the second page');
     e2e_check(str_contains($ordersPageTwo['body'], 'HTTP Test Buyer'), 'Second order page retains the older real order and its details');
 
+    $commentPostId = (int)$fixtureDb->query("SELECT id FROM posts WHERE slug='http-e2e-published-article'")->fetchColumn();
+    $commentFixture = $fixtureDb->prepare("INSERT INTO comments (post_id,author,email,content,status) VALUES (?,?,?,?, 'pending')");
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
+        $commentFixture->execute([$commentPostId, 'Comment Fixture ' . $fixture, 'comment@example.test', 'Fixture comment']);
+    }
+    $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php');
+    e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Comment moderation paginates its first 25 records');
+    $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?page=2');
+    e2e_check(substr_count($commentsPageTwo['body'], '<tr>') - 1 === 1, 'Comment moderation renders only the remaining record on page two');
+
     // Put a committed row into an uncheckpointed WAL. The downloaded snapshot
     // must include it even though the main .sqlite file alone does not.
     $walDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
@@ -431,6 +472,15 @@ try {
     e2e_check($walProbe->fetchColumn() === 'committed-in-wal', 'SQLite snapshot includes committed data that was still in the WAL');
 
     // Role boundary checks use a second, independent browser session.
+    $userFixture = $fixtureDb->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'author')");
+    for ($fixture = 1; $fixture <= 25; $fixture++) {
+        $userFixture->execute(['fixture-user-' . $fixture, password_hash('Fixture-Password-2026!', PASSWORD_DEFAULT), 'fixture-' . $fixture . '@example.test', 'Fixture User ' . $fixture]);
+    }
+    $usersPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/users.php');
+    e2e_check(substr_count($usersPageOne['body'], '<tr>') - 1 === 25 && str_contains($usersPageOne['body'], 'صفحه 1 از 2'), 'User administration paginates its first 25 records');
+    $usersPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/users.php?page=2');
+    e2e_check(substr_count($usersPageTwo['body'], '<tr>') - 1 === 1, 'User administration renders only the remaining record on page two');
+
     $db = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'author')")

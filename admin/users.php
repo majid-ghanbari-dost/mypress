@@ -34,8 +34,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     mp_redirect('users.php');
 }
-$rows = $pdo->query('SELECT id,username,email,display_name,role,created_at FROM users ORDER BY created_at')->fetchAll();
+$perPage = 25;
+$totalRows = (int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = min(mp_admin_page_number(), $totalPages);
+$offset = ($page - 1) * $perPage;
+$userQuery = $pdo->prepare('SELECT id,username,email,display_name,role,created_at FROM users ORDER BY created_at, id LIMIT ? OFFSET ?');
+$userQuery->bindValue(1, $perPage, PDO::PARAM_INT);
+$userQuery->bindValue(2, $offset, PDO::PARAM_INT);
+$userQuery->execute();
+$rows = $userQuery->fetchAll();
 mp_admin_header(t('users'), $user);
+mp_admin_pagination($page, $totalPages, 'users.php');
 ?>
 <form method="post"><?= mp_csrf_field() ?>
 <label>نام کاربری <input name="username" required minlength="3" maxlength="60" pattern="[A-Za-z0-9_.-]+" dir="ltr"></label>
@@ -46,5 +56,6 @@ mp_admin_header(t('users'), $user);
 <table class="table"><tr><th>نام کاربری</th><th>نام نمایشی</th><th>ایمیل</th><th>نقش</th><th>عملیات</th></tr>
 <?php foreach ($rows as $row): ?><tr><td dir="ltr"><?= e($row['username']) ?></td><td><?= e($row['display_name']) ?></td><td dir="ltr"><?= e($row['email']) ?></td><td><?= e(mp_role_label($row['role'])) ?></td>
 <td><?php if ((int)$row['id'] !== (int)$user['id']): ?><form method="post" style="display:inline" data-confirm="حذف شود؟"><?= mp_csrf_field() ?><input type="hidden" name="delete_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-danger btn-small" type="submit">حذف</button></form><?php endif; ?></td></tr><?php endforeach; ?></table>
+<?php mp_admin_pagination($page, $totalPages, 'users.php'); ?>
 <script src="../assets/js/admin.js"></script>
 <?php mp_admin_footer(); ?>
