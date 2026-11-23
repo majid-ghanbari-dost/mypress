@@ -26,4 +26,22 @@ function mp_admin_header(string $title, array $user): void {
         . '<a href="../index.php" target="_blank" rel="noopener">🌐 مشاهده سایت</a>'
         . '</nav><main class="content"><h1>' . e($title) . '</h1>' . mp_flash_show();
 }
+function mp_admin_page_number(): int {
+    $page = filter_var($_GET['page'] ?? 1, FILTER_VALIDATE_INT);
+    return $page === false || $page === null || $page < 1 ? 1 : $page;
+}
+
+function mp_admin_pagination(int $page, int $totalPages, string $script): void {
+    if ($totalPages <= 1) return;
+    echo '<nav class="pagination" aria-label="صفحه‌بندی" style="display:flex;gap:12px;align-items:center;margin:16px 0">';
+    if ($page > 1) {
+        echo '<a href="' . e($script) . '?page=' . ($page - 1) . '">← قبلی</a>';
+    }
+    echo '<span>صفحه ' . $page . ' از ' . $totalPages . '</span>';
+    if ($page < $totalPages) {
+        echo '<a href="' . e($script) . '?page=' . ($page + 1) . '">بعدی →</a>';
+    }
+    echo '</nav>';
+}
+
 function mp_admin_footer(): void { echo '</main></div></body></html>'; }
