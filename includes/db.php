@@ -95,17 +95,53 @@ function mp_ensure_security_schema(PDO $pdo): void {
 
     // Order administration loads line items by order_id. Add this index to
     // existing installations once, not just to newly created databases.
-    if (mp_table_exists($pdo, 'order_items')) {
-        $migrationVersion = 'order-items-order-index-v1';
-        $check = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
-        $check->execute([$migrationVersion]);
-        if (!$check->fetchColumn()) {
-            mp_ensure_index($pdo, 'order_items', 'idx_order_items_order_id', 'order_id');
-            $insertSql = $mysql
-                ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
-                : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
-            $pdo->prepare($insertSql)->execute([$migrationVersion, date('Y-m-d H:i:s')]);
+    $orderIndexMigration = 'order-items-order-index-v1';
+    $orderIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $orderIndexCheck->execute([$orderIndexMigration]);
+    if (!$orderIndexCheck->fetchColumn() && mp_table_exists($pdo, 'order_items')) {
+        mp_ensure_index($pdo, 'order_items', 'idx_order_items_order_id', 'order_id');
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$orderIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
+    // Cover the stable sort/filter patterns used by high-volume admin screens
+    // and the public product listing. This migration runs once per installation.
+    $adminIndexMigration = 'admin-list-indexes-v1';
+    $adminIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $adminIndexCheck->execute([$adminIndexMigration]);
+    if (!$adminIndexCheck->fetchColumn() && mp_table_exists($pdo, 'posts')) {
+        $adminIndexes = [
+            'posts' => [
+                'idx_posts_type_created_id' => 'type, created_at, id',
+                'idx_posts_author_type_created_id' => 'author_id, type, created_at, id',
+            ],
+            'comments' => [
+                'idx_comments_created_id' => 'created_at, id',
+            ],
+            'media' => [
+                'idx_media_created_id' => 'created_at, id',
+                'idx_media_owner_created_id' => 'uploaded_by, created_at, id',
+            ],
+            'products' => [
+                'idx_products_created_id' => 'created_at, id',
+                'idx_products_status_created_id' => 'status, created_at, id',
+            ],
+            'orders' => [
+                'idx_orders_created_id' => 'created_at, id',
+            ],
+        ];
+        foreach ($adminIndexes as $tableName => $indexesForTable) {
+            if (!mp_table_exists($pdo, $tableName)) continue;
+            foreach ($indexesForTable as $indexName => $columns) {
+                mp_ensure_index($pdo, $tableName, $indexName, $columns);
+            }
         }
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$adminIndexMigration, date('Y-m-d H:i:s')]);
     }
 
     // Existing MySQL installations used 32-bit INTEGER for money fields.
