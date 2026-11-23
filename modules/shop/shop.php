@@ -96,11 +96,22 @@ function mp_checkout(array $data, ?PDO $connection = null): int {
     if (!$cart) return 0;
     $name = trim((string)($data['customer_name'] ?? ''));
     $phone = trim((string)($data['customer_phone'] ?? ''));
+    $phone = strtr($phone, [
+        '۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9',
+        '٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9',
+    ]);
+    $phone = preg_replace('/[\\s().-]+/', '', $phone) ?? $phone;
     $address = trim((string)($data['customer_address'] ?? ''));
-    if ($name === '' || strlen($name) > 150 || $phone === '' || strlen($phone) > 50 ||
+    if ($name === '' || strlen($name) > 150 || strlen($phone) > 50 ||
+        !preg_match('/^\\+?[0-9]{7,20}$/', $phone) ||
         $address === '' || strlen($address) > 5000) return 0;
 
     $pdo = $connection ?? mp_pdo();
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    if (!mp_public_rate_limit('order-ip', $ip, 5, 900, $pdo) ||
+        !mp_public_rate_limit('order-phone', $phone, 5, 86400, $pdo)) {
+        return 0;
+    }
     try {
         $pdo->beginTransaction();
         $items = [];
