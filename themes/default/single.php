@@ -11,9 +11,25 @@ if (!$post): ?><h2>یافت نشد</h2><p>این صفحه وجود ندارد ی
 </article>
 <?php if ($route['type'] === 'post' && mp_module_enabled('comments')): ?>
 <section class="comments"><h3>💬 نظرات</h3>
-<?php foreach (mp_approved_comments((int)$post['id']) as $c): ?>
+<?php
+$commentPostId = (int)$post['id'];
+$commentsPerPage = 25;
+$commentTotal = mp_approved_comments_count($commentPostId);
+$commentTotalPages = max(1, (int)ceil($commentTotal / $commentsPerPage));
+$rawCommentPage = filter_var($_GET['comment_page'] ?? 1, FILTER_VALIDATE_INT);
+$commentPage = min(max(1, $rawCommentPage === false || $rawCommentPage === null ? 1 : $rawCommentPage), $commentTotalPages);
+$comments = mp_approved_comments($commentPostId, $commentsPerPage, ($commentPage - 1) * $commentsPerPage);
+?>
+<?php foreach ($comments as $c): ?>
   <div class="comment"><b><?= e($c['author']) ?></b> <small><?= e($c['created_at']) ?></small><p><?= nl2br(e($c['content'])) ?></p></div>
 <?php endforeach; ?>
+<?php if ($commentTotalPages > 1): ?>
+<nav class="pagination" aria-label="صفحه‌بندی نظرات" style="display:flex;gap:12px;align-items:center;margin:16px 0">
+  <?php if ($commentPage > 1): ?><a href="index.php?post=<?= rawurlencode((string)$post['slug']) ?>&amp;comment_page=<?= $commentPage - 1 ?>">نظرات قبلی</a><?php endif; ?>
+  <span>صفحه <?= $commentPage ?> از <?= $commentTotalPages ?></span>
+  <?php if ($commentPage < $commentTotalPages): ?><a href="index.php?post=<?= rawurlencode((string)$post['slug']) ?>&amp;comment_page=<?= $commentPage + 1 ?>">نظرات بعدی</a><?php endif; ?>
+</nav>
+<?php endif; ?>
 <form method="post"><h4>ثبت نظر</h4><?= mp_csrf_field() ?>
   <input type="hidden" name="post_id" value="<?= (int)$post['id'] ?>">
   <input type="hidden" name="slug" value="<?= e($post['slug']) ?>">
