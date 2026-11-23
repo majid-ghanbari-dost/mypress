@@ -14,7 +14,7 @@ This guide describes an operator-run recovery procedure. MyPress currently provi
 
 The administrator can download a SQLite database from **Admin → Backup → SQLite**. The file contains the database, including user password hashes, so treat it as sensitive and encrypt it at rest. The JSON export intentionally omits password hashes and is a data export, not a complete restorable database.
 
-For a consistent recovery, put the site into maintenance mode and stop PHP requests before copying/replacing the database.
+MyPress creates each downloaded SQLite backup with SQLite's `VACUUM INTO` snapshot operation. This captures a consistent committed database state (including committed WAL content) without requiring the site to enter maintenance mode for the backup itself. Maintenance mode is still recommended before replacing a live database during restore.
 
 1. Download the SQLite backup over HTTPS while signed in as an administrator.
 2. Store it outside the web root and verify it before relying on it:
