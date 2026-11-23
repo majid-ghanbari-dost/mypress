@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cart_action']) && mp_
     if ($_POST['cart_action'] === 'checkout') {
         $orderId = mp_checkout($_POST);
         if ($orderId > 0) mp_redirect('index.php?checkout=done&order=' . $orderId);
-        mp_flash('ثبت سفارش انجام نشد؛ موجودی یا اطلاعات سفارش را بررسی کنید.', 'err');
+        mp_flash('ثبت سفارش انجام نشد؛ موجودی، اطلاعات تماس یا محدودیت تعداد سفارش را بررسی کنید.', 'err');
         mp_redirect('index.php?checkout=1');
     }
 }
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment_submit']) && 
     $postId = (int)($_POST['post_id'] ?? 0);
     $ok = mp_add_comment($postId, trim((string)($_POST['author'] ?? '')),
         trim((string)($_POST['email'] ?? '')), trim((string)($_POST['content'] ?? '')));
-    mp_flash($ok ? 'نظر شما ثبت شد و پس از تایید مدیر نمایش داده می‌شود.' : 'اطلاعات نظر ناقص است.', $ok ? 'ok' : 'err');
+    mp_flash($ok ? 'نظر شما ثبت شد و پس از تایید مدیر نمایش داده می‌شود.' : 'اطلاعات نظر ناقص است یا محدودیت ارسال اعمال شده است.', $ok ? 'ok' : 'err');
     $slug = (string)($_POST['slug'] ?? '');
     $type = ($_POST['ptype'] ?? 'post') === 'page' ? 'page' : 'post';
     mp_redirect('index.php?' . $type . '=' . rawurlencode($slug));
