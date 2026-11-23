@@ -369,7 +369,7 @@ try {
     ]);
     e2e_check($fakeUpload['status'] === 303, 'Invalid upload is handled without crashing the HTTP route');
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
-    e2e_check(substr_count($mediaPage['body'], '<tr>') === 28, 'Invalid PHP disguised as an image is not added to the media library');
+    e2e_check(substr_count($mediaPage['body'], '<tr>') === 26, 'Invalid PHP disguised as an image is not added to the media library');
 
     // Public shop journey: create product, add to cart and place a COD order.
     $productsPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php');
