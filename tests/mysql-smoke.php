@@ -19,7 +19,7 @@ $pdo->exec('SET SESSION default_storage_engine=InnoDB');
 // Simulate a MyPress 1.0 database: legacy 32-bit money columns on MyISAM tables.
 $pdo->exec("CREATE TABLE products (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL, slug VARCHAR(191) NOT NULL UNIQUE,
     description TEXT NOT NULL, price INT NOT NULL DEFAULT 0,
     stock INT NOT NULL DEFAULT 0, image VARCHAR(255) DEFAULT '',
     category_id INT DEFAULT NULL, status VARCHAR(20) NOT NULL DEFAULT 'published',
