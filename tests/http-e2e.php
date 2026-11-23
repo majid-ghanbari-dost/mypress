@@ -310,6 +310,21 @@ try {
     e2e_check($savedPost['status'] === 303, 'Administrator can create and publish a post');
     $publicPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
     e2e_check($publicPost['status'] === 200 && str_contains($publicPost['body'], 'Rendered through the public HTTP route.'), 'Newly published post is rendered publicly');
+    $publicComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+        'csrf' => e2e_csrf($publicPost),
+        'comment_submit' => '1',
+        'post_id' => '3',
+        'slug' => 'http-e2e-published-article',
+        'ptype' => 'post',
+        'author' => 'HTTP Commenter',
+        'email' => 'commenter@example.test',
+        'content' => 'A public comment submitted through the real form.',
+    ]);
+    e2e_check($publicComment['status'] === 303, 'Public comment submission succeeds through the CSRF-protected HTTP form');
+    $commentDbProbe = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
+    $commentProbe = $commentDbProbe->prepare("SELECT COUNT(*) FROM comments WHERE author=? AND status='pending'");
+    $commentProbe->execute(['HTTP Commenter']);
+    e2e_check((int)$commentProbe->fetchColumn() === 1, 'Public comment is stored pending moderation');
 
     $adminIdForFixtures = 0;
     $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
@@ -477,6 +492,16 @@ try {
     for ($fixture = 1; $fixture <= 26; $fixture++) {
         $commentFixture->execute([$commentPostId, 'Comment Fixture ' . $fixture, 'comment@example.test', 'Fixture comment']);
     }
+    $approvedCommentFixture = $fixtureDb->prepare("INSERT INTO comments (post_id,author,email,content,status) VALUES (?,?,?,?, 'approved')");
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
+        $approvedCommentFixture->execute([$commentPostId, 'Approved Fixture ' . $fixture, 'approved@example.test', 'Approved public comment']);
+    }
+    $publicCommentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
+    e2e_check(substr_count($publicCommentsPageOne['body'], '<div class="comment">') === 25 &&
+        str_contains($publicCommentsPageOne['body'], 'صفحه 1 از 2'), 'Public comments render a bounded first page of 25');
+    $publicCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article&comment_page=2');
+    e2e_check(substr_count($publicCommentsPageTwo['body'], '<div class="comment">') === 1 &&
+        str_contains($publicCommentsPageTwo['body'], 'صفحه 2 از 2'), 'Public comment pagination renders only the remaining comment');
     $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php');
     e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Comment moderation paginates its first 25 records');
     $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?page=2');
