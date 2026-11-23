@@ -31,15 +31,20 @@ function mp_admin_page_number(): int {
     return $page === false || $page === null || $page < 1 ? 1 : $page;
 }
 
-function mp_admin_pagination(int $page, int $totalPages, string $script): void {
+function mp_admin_pagination(int $page, int $totalPages, string $script, array $query = []): void {
     if ($totalPages <= 1) return;
+    $urlForPage = static function (int $targetPage) use ($script, $query): string {
+        $parameters = $query;
+        $parameters['page'] = $targetPage;
+        return e($script . '?' . http_build_query($parameters));
+    };
     echo '<nav class="pagination" aria-label="صفحه‌بندی" style="display:flex;gap:12px;align-items:center;margin:16px 0">';
     if ($page > 1) {
-        echo '<a href="' . e($script) . '?page=' . ($page - 1) . '">← قبلی</a>';
+        echo '<a href="' . $urlForPage($page - 1) . '">← قبلی</a>';
     }
     echo '<span>صفحه ' . $page . ' از ' . $totalPages . '</span>';
     if ($page < $totalPages) {
-        echo '<a href="' . e($script) . '?page=' . ($page + 1) . '">بعدی →</a>';
+        echo '<a href="' . $urlForPage($page + 1) . '">بعدی →</a>';
     }
     echo '</nav>';
 }
