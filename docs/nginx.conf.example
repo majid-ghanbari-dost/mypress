@@ -2,7 +2,7 @@
 # Merge into the correct server{} block and verify the PHP-FPM socket/path.
 # Prefer placing config.php, data, backups and logs outside the document root.
 
-location = /config.php { deny all; }
+location ~* ^/config\\.php(?:\\..*)?$ { deny all; }
 location ^~ /data/ { deny all; }
 location ~ /\.(?!well-known/) { deny all; }
 location ~* ^/uploads/.*\.(php[0-9]?|phtml|phar|cgi|pl|py|sh)$ { deny all; }
