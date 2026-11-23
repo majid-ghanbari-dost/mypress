@@ -11,9 +11,9 @@ function mp_admin_header(string $title, array $user): void {
         . '<link rel="stylesheet" href="../assets/css/admin.css"></head><body>'
         . '<header class="topbar"><a class="brand" href="../index.php" target="_blank" rel="noopener">MyPress</a>'
         . '<span class="site-name">' . e(mp_option('site_title', 'MyPress')) . '</span>'
-        . '<span class="user">' . e($user['display_name']) . ' (' . e(mp_role_label($user['role'])) . ') — '
+        . '<div class="user">' . e($user['display_name']) . ' (' . e(mp_role_label($user['role'])) . ') — '
         . '<form method="post" action="logout.php" style="display:inline">' . mp_csrf_field()
-        . '<button type="submit" style="background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer">' . e(t('logout')) . '</button></form></span></header>'
+        . '<button type="submit" style="background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer">' . e(t('logout')) . '</button></form></div></header>'
         . '<div class="layout"><nav class="sidebar">'
         . '<a href="index.php">📊 ' . e(t('dashboard')) . '</a>'
         . '<a href="posts.php">📝 ' . e(t('posts')) . '</a>'
