@@ -355,6 +355,17 @@ try {
     $restoredStock = $orderDb->query('SELECT stock FROM products WHERE id=2')->fetchColumn();
     e2e_check($orderState === 'cancelled' && (int)$restoredStock === 2, 'Order cancellation restores stock exactly once');
 
+    // Put a committed row into an uncheckpointed WAL. The downloaded snapshot
+    // must include it even though the main .sqlite file alone does not.
+    $walDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
+    $walDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $walDb->exec('PRAGMA journal_mode=WAL');
+    $walDb->exec('PRAGMA wal_autocheckpoint=0');
+    $walDb->prepare('INSERT INTO options (opt_key,opt_value) VALUES (?,?)')
+        ->execute(['backup_wal_probe','committed-in-wal']);
+    $walFile = $docRoot . '/data/mypress.sqlite-wal';
+    e2e_check(is_file($walFile) && filesize($walFile) > 0, 'WAL fixture contains committed data before backup');
+
     // Backups must be downloadable and must not disclose password hashes.
     $jsonBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=json');
     e2e_check($jsonBackup['status'] === 200 && str_contains($jsonBackup['headers'], 'application/json'), 'Administrator can download JSON backup');
@@ -373,6 +384,9 @@ try {
     $restoredStock = $restoredDb->query('SELECT stock FROM products WHERE id=2')->fetchColumn();
     e2e_check($integrity === 'ok', 'Downloaded SQLite backup passes PRAGMA integrity_check after restore');
     e2e_check($restoredOrder === 'cancelled' && (int)$restoredStock === 2, 'Restored SQLite backup preserves order and inventory state');
+    $walProbe = $restoredDb->prepare('SELECT opt_value FROM options WHERE opt_key=?');
+    $walProbe->execute(['backup_wal_probe']);
+    e2e_check($walProbe->fetchColumn() === 'committed-in-wal', 'SQLite snapshot includes committed data that was still in the WAL');
 
     // Role boundary checks use a second, independent browser session.
     $db = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
