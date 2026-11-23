@@ -21,7 +21,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 - Image upload validation by file bytes, MIME and dimensions
 - SQLite and MySQL/MariaDB connection support
 - Shop with server-side price/stock validation, transactional order creation and atomic stock decrement
-- Order cancellation restores stock once; cancelled orders are terminal
+- Order cancellation restores stock once; order statuses only move forward, shipped/cancelled orders are terminal
 - Comments moderation, menus, media library and basic SEO metadata
 - PHP syntax checks and SQLite smoke tests in GitHub Actions
 
