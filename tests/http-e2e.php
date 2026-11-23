@@ -406,6 +406,8 @@ try {
     e2e_check($authorDashboard['status'] === 200 && str_contains($authorDashboard['body'], 'نوشته‌های من'), 'Author sees the role-scoped dashboard');
     $authorProducts = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/shop-products.php');
     e2e_check($authorProducts['status'] === 403, 'Author cannot access product administration');
+    $authorBackup = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/backup.php?download=sqlite');
+    e2e_check($authorBackup['status'] === 403, 'Author cannot download the administrator SQLite backup');
     $authorPageEdit = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/post-edit.php?type=page');
     e2e_check($authorPageEdit['status'] === 403, 'Author cannot create or edit pages');
 
