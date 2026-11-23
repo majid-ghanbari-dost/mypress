@@ -43,6 +43,24 @@ $pdo->exec("CREATE TABLE order_items (
 
 // The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
+
+// The per-IP throttle query has no username_key predicate, so its leading
+// index must exist on MySQL as well as SQLite.
+$throttleIndexes = $pdo->prepare(
+    "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND table_name='login_attempts'
+       AND index_name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')"
+);
+$throttleIndexes->execute();
+if ((int)$throttleIndexes->fetchColumn() !== 2) {
+    throw new RuntimeException('Expected both MySQL login throttle indexes');
+}
+mp_ensure_security_schema($pdo);
+$throttleIndexes->execute();
+if ((int)$throttleIndexes->fetchColumn() !== 2) {
+    throw new RuntimeException('Repeated MySQL security schema setup changed throttle indexes');
+}
+
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
 $adminId = (int)$pdo->lastInsertId();
