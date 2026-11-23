@@ -74,7 +74,7 @@ jobs:
       - name: Assemble clean runtime package
         run: |
           mkdir -p dist/mypress
-          cp -R admin assets docs includes modules themes uploads dist/mypress/
+          cp -R admin assets data docs includes modules themes uploads dist/mypress/
           cp .htaccess README.md config.sample.php index.php install.php dist/mypress/
           cd dist
           zip -qr mypress-2.0.0-staging.zip mypress
