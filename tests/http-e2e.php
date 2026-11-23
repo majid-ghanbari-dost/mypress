@@ -316,9 +316,11 @@ try {
     e2e_check(substr_count($postsPageOne['body'], '<tr>') - 1 === 25 && str_contains($postsPageOne['body'], 'صفحه 1 از 2'), 'Post administration paginates the first 25 records');
     $postsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?page=2');
     e2e_check(substr_count($postsPageTwo['body'], '<tr>') - 1 === 3 && str_contains($postsPageTwo['body'], 'صفحه 2 از 2'), 'Post administration paginates remaining records');
-    $filteredPosts = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?q=Post+Fixture+1&status=draft');
-    e2e_check($filteredPosts['status'] === 200 && substr_count($filteredPosts['body'], '<tr>') - 1 === 11, 'Post search and draft status filter compose correctly');
-    e2e_check(str_contains($filteredPosts['body'], 'q=Post+Fixture+1') && str_contains($filteredPosts['body'], 'status=draft'), 'Post pagination preserves active filters');
+    $filteredPosts = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?q=Post+Fixture&status=draft');
+    e2e_check($filteredPosts['status'] === 200 && substr_count($filteredPosts['body'], '<tr>') - 1 === 25, 'Post search and draft status filter compose correctly');
+    e2e_check(str_contains($filteredPosts['body'], 'q=Post+Fixture') && str_contains($filteredPosts['body'], 'status=draft'), 'Post pagination preserves active filters');
+    $filteredPostsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?q=Post+Fixture&status=draft&page=2');
+    e2e_check($filteredPostsPageTwo['status'] === 200 && substr_count($filteredPostsPageTwo['body'], '<tr>') - 1 === 1, 'Filtered post pagination returns the remaining matching post');
     $noMatchPosts = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/posts.php?q=NoSuchPost&status=published');
     e2e_check($noMatchPosts['status'] === 200 && substr_count($noMatchPosts['body'], '<tr>') === 1, 'Post filters handle empty results');
     $pageFixture = $fixtureDb->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'page','draft',?)");
