@@ -15,15 +15,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['s
 }
 
 $perPage = 25;
-$totalOrders = (int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn();
+$search = trim((string)($_GET['q'] ?? ''));
+if (strlen($search) > 400) {
+    http_response_code(400);
+    exit('عبارت جست‌وجو بیش از حد طولانی است.');
+}
+$allowedStatuses = ['new', 'processing', 'shipped', 'cancelled'];
+$status = (string)($_GET['status'] ?? 'all');
+if (!in_array($status, $allowedStatuses, true)) $status = 'all';
+
+$where = [];
+$params = [];
+if ($search !== '') {
+    $where[] = '(id = ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
+    $params[] = ctype_digit($search) ? (int)$search : -1;
+    $params[] = $search . '%';
+    $params[] = $search . '%';
+}
+if ($status !== 'all') {
+    $where[] = 'status = ?';
+    $params[] = $status;
+}
+$whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+$countQuery = $pdo->prepare('SELECT COUNT(*) FROM orders' . $whereSql);
+$countQuery->execute($params);
+$totalOrders = (int)$countQuery->fetchColumn();
 $totalPages = max(1, (int)ceil($totalOrders / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-$ordersQuery = $pdo->prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
-$ordersQuery->bindValue(1, $perPage, PDO::PARAM_INT);
-$ordersQuery->bindValue(2, $offset, PDO::PARAM_INT);
+$ordersQuery = $pdo->prepare('SELECT * FROM orders' . $whereSql . ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+foreach ($params as $index => $value) {
+    $ordersQuery->bindValue($index + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$ordersQuery->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
+$ordersQuery->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
 $ordersQuery->execute();
 $orders = $ordersQuery->fetchAll();
+$paginationQuery = [];
+if ($search !== '') $paginationQuery['q'] = $search;
+if ($status !== 'all') $paginationQuery['status'] = $status;
 
 // Fetch line items for the current page in one query instead of one query per order.
 $itemsByOrder = [];
@@ -37,8 +67,20 @@ if ($orders) {
     }
 }
 mp_admin_header(t('orders'), $user);
-mp_admin_pagination($page, $totalPages, 'shop-orders.php');
 ?>
+<form method="get" action="shop-orders.php" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 20px">
+<label>جست‌وجوی سفارش <input type="search" name="q" maxlength="100" value="<?= e($search) ?>" placeholder="شماره سفارش، نام یا ابتدای تلفن"></label>
+<label>وضعیت <select name="status" style="width:auto">
+<option value="all" <?= $status === 'all' ? 'selected' : '' ?>>همه وضعیت‌ها</option>
+<option value="new" <?= $status === 'new' ? 'selected' : '' ?>>جدید</option>
+<option value="processing" <?= $status === 'processing' ? 'selected' : '' ?>>در حال پردازش</option>
+<option value="shipped" <?= $status === 'shipped' ? 'selected' : '' ?>>ارسال‌شده</option>
+<option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>>لغو شده</option>
+</select></label>
+<button class="btn btn-small" type="submit">اعمال فیلتر</button>
+<a href="shop-orders.php">پاک‌کردن</a>
+</form>
+<?php mp_admin_pagination($page, $totalPages, 'shop-orders.php', $paginationQuery); ?>
 <?php if (!$orders): ?><p>هنوز سفارشی ثبت نشده است.</p><?php endif; ?>
 <?php foreach ($orders as $order): ?>
 <div class="post-card">
@@ -52,5 +94,5 @@ mp_admin_pagination($page, $totalPages, 'shop-orders.php');
 </select> <button class="btn btn-small" type="submit">به‌روزرسانی</button></form>
 </div>
 <?php endforeach; ?>
-<?php mp_admin_pagination($page, $totalPages, 'shop-orders.php'); ?>
+<?php mp_admin_pagination($page, $totalPages, 'shop-orders.php', $paginationQuery); ?>
 <?php mp_admin_footer(); ?>

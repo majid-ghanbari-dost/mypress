@@ -66,6 +66,10 @@ $adminIndexCount = (int)$pdo->query(
     "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('" . implode("','", $adminIndexNames) . "')"
 )->fetchColumn();
 check($adminIndexCount === count($adminIndexNames), 'Admin query indexes are installed on SQLite');
+$orderSearchIndexes = (int)$pdo->query(
+    "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_orders_customer_name_created_id','idx_orders_customer_phone_created_id')"
+)->fetchColumn();
+check($orderSearchIndexes === 2, 'Order customer search indexes are installed on SQLite');
 mp_ensure_security_schema($pdo);
 $adminIndexCountAgain = (int)$pdo->query(
     "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('" . implode("','", $adminIndexNames) . "')"
