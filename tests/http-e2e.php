@@ -321,10 +321,34 @@ try {
         'content' => 'A public comment submitted through the real form.',
     ]);
     e2e_check($publicComment['status'] === 303, 'Public comment submission succeeds through the CSRF-protected HTTP form');
+    for ($commentAttempt = 2; $commentAttempt <= 5; $commentAttempt++) {
+        $additionalComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+            'csrf' => e2e_csrf($publicPost),
+            'comment_submit' => '1',
+            'post_id' => '3',
+            'slug' => 'http-e2e-published-article',
+            'ptype' => 'post',
+            'author' => 'HTTP Commenter',
+            'email' => 'commenter@example.test',
+            'content' => 'Rate limit fixture ' . $commentAttempt,
+        ]);
+        e2e_check($additionalComment['status'] === 303, 'Public comment within the IP threshold is accepted');
+    }
+    $blockedComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+        'csrf' => e2e_csrf($publicPost),
+        'comment_submit' => '1',
+        'post_id' => '3',
+        'slug' => 'http-e2e-published-article',
+        'ptype' => 'post',
+        'author' => 'HTTP Commenter',
+        'email' => 'commenter@example.test',
+        'content' => 'This sixth comment must be blocked.',
+    ]);
+    e2e_check($blockedComment['status'] === 303, 'Public comment over the IP threshold is safely redirected');
     $commentDbProbe = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
     $commentProbe = $commentDbProbe->prepare("SELECT COUNT(*) FROM comments WHERE author=? AND status='pending'");
     $commentProbe->execute(['HTTP Commenter']);
-    e2e_check((int)$commentProbe->fetchColumn() === 1, 'Public comment is stored pending moderation');
+    e2e_check((int)$commentProbe->fetchColumn() === 5, 'Public comment rate limit prevents the sixth pending comment');
 
     $adminIdForFixtures = 0;
     $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
