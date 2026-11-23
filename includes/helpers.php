@@ -1,58 +1,92 @@
 <?php
-// helpers.php — توابع کمکی: escape، CSRF، فلش، اسلاگ، زبان
+// MyPress core helpers — output escaping, sessions, CSRF, uploads and localization.
+declare(strict_types=1);
 
-function e(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function e(?string $value): string {
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
 
-function mp_redirect(string $url): void { header('Location: ' . $url); exit; }
+function mp_redirect(string $url): void {
+    header('Location: ' . $url, true, 303);
+    exit;
+}
 
 function mp_slug(string $text): string {
     $text = trim($text);
-    $text = preg_replace('/[^\p{L}\p{N}]+/u', '-', $text) ?? '';
+    $text = preg_replace('/[^\\p{L}\\p{N}]+/u', '-', $text) ?? '';
     $text = trim($text, '-');
-    return $text !== '' ? $text : 'item-' . time();
+    return $text !== '' ? $text : 'item-' . bin2hex(random_bytes(4));
 }
 
-// نشست امن
 function mp_session_start(): void {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start(['cookie_httponly' => true, 'cookie_samesite' => 'Lax', 'use_strict_mode' => true]);
-    }
+    if (session_status() !== PHP_SESSION_NONE) return;
+
+    // Set cookie policy before PHP creates the session cookie.
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+    $secure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
 }
 
-// CSRF
 function mp_csrf_token(): string {
     mp_session_start();
-    if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    if (empty($_SESSION['csrf']) || !is_string($_SESSION['csrf'])) {
+        $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    }
     return $_SESSION['csrf'];
 }
-function mp_csrf_field(): string { return '<input type="hidden" name="csrf" value="' . e(mp_csrf_token()) . '">'; }
+
+function mp_csrf_field(): string {
+    return '<input type="hidden" name="csrf" value="' . e(mp_csrf_token()) . '">';
+}
+
 function mp_csrf_check(): void {
     mp_session_start();
-    $t = $_POST['csrf'] ?? '';
-    if (!hash_equals($_SESSION['csrf'] ?? '', (string)$t)) {
-        http_response_code(403); exit('CSRF token invalid.');
+    $provided = $_POST['csrf'] ?? '';
+    $expected = $_SESSION['csrf'] ?? '';
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !is_string($provided) ||
+        !is_string($expected) || $expected === '' || !hash_equals($expected, $provided)) {
+        http_response_code(403);
+        exit('درخواست معتبر نیست. صفحه را تازه‌سازی و دوباره تلاش کنید.');
     }
 }
 
-// پیام فلش یک‌بارمصرف
-function mp_flash(string $msg, string $type = 'ok'): void { mp_session_start(); $_SESSION['flash'] = ['msg' => $msg, 'type' => $type]; }
-function mp_flash_show(): string {
+function mp_flash(string $msg, string $type = 'ok'): void {
     mp_session_start();
-    if (empty($_SESSION['flash'])) return '';
-    $f = $_SESSION['flash']; unset($_SESSION['flash']);
-    return '<div class="flash flash-' . e($f['type']) . '">' . e($f['msg']) . '</div>';
+    $_SESSION['flash'] = ['msg' => $msg, 'type' => $type === 'err' ? 'err' : 'ok'];
 }
 
-// زبان: 'fa' پیش‌فرض، 'en' با ?lang=en یا تنظیمات
+function mp_flash_show(): string {
+    mp_session_start();
+    if (empty($_SESSION['flash']) || !is_array($_SESSION['flash'])) return '';
+    $flash = $_SESSION['flash'];
+    unset($_SESSION['flash']);
+    return '<div class="flash flash-' . e((string)($flash['type'] ?? 'ok')) . '">' .
+        e((string)($flash['msg'] ?? '')) . '</div>';
+}
+
 function mp_lang(): string {
-    $l = $_GET['lang'] ?? ($_SESSION['lang'] ?? null);
-    if (in_array($l, ['fa','en'], true)) { $_SESSION['lang'] = $l; return $l; }
-    return mp_option('site_lang', 'fa') ?: 'fa';
+    mp_session_start();
+    $language = $_GET['lang'] ?? ($_SESSION['lang'] ?? null);
+    if (in_array($language, ['fa', 'en'], true)) {
+        $_SESSION['lang'] = $language;
+        return $language;
+    }
+    $configured = mp_option('site_lang', 'fa');
+    return in_array($configured, ['fa', 'en'], true) ? $configured : 'fa';
 }
 function mp_is_rtl(): bool { return mp_lang() === 'fa'; }
 function mp_dir(): string { return mp_is_rtl() ? 'rtl' : 'ltr'; }
 
-// ترجمه‌های کوتاه رابط مدیریت و سایت
 function t(string $key): string {
     $fa = [
         'dashboard'=>'داشبورد','posts'=>'نوشته‌ها','pages'=>'برگه‌ها','media'=>'رسانه','comments'=>'نظرات',
@@ -68,22 +102,55 @@ function t(string $key): string {
         'site_title'=>'Site title','save'=>'Save','add'=>'Add','edit'=>'Edit','delete'=>'Delete',
         'search'=>'Search','home'=>'Home','cart'=>'Cart','checkout'=>'Checkout','welcome'=>'Welcome',
     ];
-    $d = mp_lang() === 'en' ? $en : $fa;
-    return $d[$key] ?? $key;
+    $dictionary = mp_lang() === 'en' ? $en : $fa;
+    return $dictionary[$key] ?? $key;
 }
 
-// قیمت با تومان (عدد صحیح ریال/تومان؛ نمایش با جداکننده هزارگان)
-function mp_price(int $n): string { return number_format($n) . ' تومان'; }
+function mp_safe_menu_url(string $url): string {
+    $url = trim($url);
+    if ($url === '' || preg_match('/[\\x00-\\x20\\\\]/', $url) || str_starts_with($url, '//')) return '#';
+    if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url)) {
+        $parts = parse_url($url);
+        if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) ||
+            !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) return '#';
+    }
+    return $url;
+}
 
-// آپلود امن تصویر: فقط jpg/png/gif/webp، حداکثر 2MB
+function mp_price(int $amount): string {
+    return number_format($amount) . ' تومان';
+}
+
+/**
+ * Store only verified raster images. The generated name is unrelated to the
+ * client filename; MIME is detected from bytes, not the browser-supplied header.
+ */
 function mp_upload_image(array $file): ?string {
-    if (empty($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) return null;
-    if ($file['size'] > 2 * 1024 * 1024) return null;
-    $info = getimagesize($file['tmp_name']);
-    if ($info === false) return null;
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK ||
+        empty($file['tmp_name']) || !is_uploaded_file((string)$file['tmp_name'])) return null;
+
+    $tmp = (string)$file['tmp_name'];
+    $actualSize = filesize($tmp);
+    if ($actualSize === false || $actualSize < 1 || $actualSize > 2 * 1024 * 1024) return null;
+
+    $image = @getimagesize($tmp);
+    if ($image === false || empty($image['mime'])) return null;
     $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
-    if (!isset($allowed[$info['mime']])) return null;
-    $name = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $allowed[$info['mime']];
-    $dest = __DIR__ . '/../uploads/' . $name;
-    return move_uploaded_file($file['tmp_name'], $dest) ? $name : null;
+    $mime = (string)$image['mime'];
+    if (!isset($allowed[$mime])) return null;
+    if (($image[0] ?? 0) < 1 || ($image[1] ?? 0) < 1 ||
+        $image[0] > 8000 || $image[1] > 8000) return null;
+
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        if ($finfo->file($tmp) !== $mime) return null;
+    }
+
+    $directory = dirname(__DIR__) . '/uploads';
+    if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) return null;
+    if (!is_writable($directory)) return null;
+
+    $name = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+    $destination = $directory . '/' . $name;
+    return move_uploaded_file($tmp, $destination) ? $name : null;
 }

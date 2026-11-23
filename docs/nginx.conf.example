@@ -1,0 +1,20 @@
+# Example Nginx rules for a MyPress site.
+# Merge into the correct server{} block and verify the PHP-FPM socket/path.
+# Prefer placing config.php, data, backups and logs outside the document root.
+
+location = /config.php { deny all; }
+location ^~ /data/ { deny all; }
+location ~ /\.(?!well-known/) { deny all; }
+location ~* ^/uploads/.*\.(php[0-9]?|phtml|phar|cgi|pl|py|sh)$ { deny all; }
+
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+# Adjust the socket for the installed PHP-FPM version.
+location ~ \.php$ {
+    try_files $uri =404;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+}

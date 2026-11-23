@@ -1,15 +1,15 @@
-# MyPress — Apache
-# دسترسی مستقیم به فایل‌های حساس را ببندید
-<FilesMatch "^(config\.php|install\.php)$">
-    # install.php بعد از نصب با قفل نصب محافظت می‌شود؛ این قانون فقط config را می‌بندد
-</FilesMatch>
+# MyPress Apache hardening. Nginx deployments must apply equivalent rules.
+Options -Indexes
+DirectoryIndex index.php
+
 <Files "config.php">
     Require all denied
 </Files>
-# اگر هاست Apache نیست، این فایل نادیده گرفته می‌شود؛ محافظت اصلی در کد است.
-Options -Indexes
-DirectoryIndex index.php
-# URL تمیز (اختیاری): /post/slug و /page/slug
+
+# Block private application data and dotfiles.
+RedirectMatch 404 ^/data(?:/|$)
+RedirectMatch 404 /\.(?!well-known/)
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
