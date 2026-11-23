@@ -18,7 +18,8 @@ Use this checklist for a staging or production installation. Completing automate
 
 ## 2. Web server and filesystem protection
 
-- [ ] Prefer keeping `config.php`, the SQLite database, backups and logs outside the public document root.
+- [ ] The current installer writes `config.php` in the project root and the bootstrap expects it there; protect it with the supplied Apache/Nginx rules. Do not move it without a tested deployment-specific path/symlink arrangement.
+- [ ] Keep the SQLite database, backups and logs outside the public document root whenever possible.
 - [ ] If using Apache, confirm `mod_rewrite` and the required `.htaccess` overrides are enabled. The repository rules deny direct access to `config.php`, installer temporary siblings such as `config.php.installing`, and `data/`. The uploads rule must also work under the host's PHP-FPM/FastCGI mode; verify that it does not cause HTTP 500 responses.
 - [ ] If using Nginx, merge the applicable rules from [nginx.conf.example](nginx.conf.example) into the correct virtual host. Nginx does not read `.htaccess`.
 - [ ] Verify from a browser or command line that `/config.php` and `/data/` return 403/404 and do not reveal file contents.
