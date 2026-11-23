@@ -26,6 +26,13 @@ function mp_ensure_security_schema(PDO $pdo): void {
     } catch (PDOException $exception) {
         // Index already exists on an initialized installation.
     }
+    try {
+        // The per-IP throttle query filters by ip_key without username_key.
+        // A separate leading-column index prevents a full scan as the table grows.
+        $pdo->exec('CREATE INDEX idx_login_attempts_ip_lookup ON login_attempts (ip_key, attempted_at)');
+    } catch (PDOException $exception) {
+        // Index already exists on an initialized installation.
+    }
     $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(64) PRIMARY KEY,
         applied_at DATETIME NOT NULL
