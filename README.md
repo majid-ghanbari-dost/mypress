@@ -47,7 +47,7 @@ See [docs/backup-restore.md](docs/backup-restore.md) for SQLite restore, MySQL d
 
 ## Web server hardening
 
-The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. Keep config.php, data/, backups, logs and private runtime files outside the public document root whenever possible.
+The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. The current installer writes `config.php` in the project root and the bootstrap expects it there; protect direct access with the supplied Apache/Nginx rules. Relocating it requires a tested deployment-specific path/symlink arrangement. Keep the SQLite database, backups, logs and other private runtime files outside the public document root whenever possible.
 
 ## Development checks
 
