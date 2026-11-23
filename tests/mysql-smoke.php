@@ -5,9 +5,10 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../modules/shop/shop.php';
 
-$dsn = getenv('MYSQL_TEST_DSN') ?: 'mysql:host=127.0.0.1;dbname=mypress_test;charset=utf8mb4';
+$host = getenv('MYSQL_TEST_HOST') ?: '127.0.0.1';
 $user = getenv('MYSQL_TEST_USER') ?: 'root';
 $password = getenv('MYSQL_TEST_PASSWORD') ?: 'root';
+$dsn = getenv('MYSQL_TEST_DSN') ?: 'mysql:host=' . $host . ';dbname=mypress_test;charset=utf8mb4';
 $pdo = new PDO($dsn, $user, $password, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -15,7 +16,31 @@ $pdo = new PDO($dsn, $user, $password, [
 ]);
 $pdo->exec('SET SESSION default_storage_engine=InnoDB');
 
-// MySQL commits DDL implicitly; the installer's table creation must precede data transactions.
+// Simulate a MyPress 1.0 database: legacy 32-bit money columns on MyISAM tables.
+$pdo->exec("CREATE TABLE products (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT NOT NULL, price INT NOT NULL DEFAULT 0,
+    stock INT NOT NULL DEFAULT 0, image VARCHAR(255) DEFAULT '',
+    category_id INT DEFAULT NULL, status VARCHAR(20) NOT NULL DEFAULT 'published',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM");
+$pdo->exec("CREATE TABLE orders (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    customer_name VARCHAR(150) NOT NULL, customer_phone VARCHAR(50) NOT NULL,
+    customer_address TEXT NOT NULL, total INT NOT NULL DEFAULT 0,
+    discount_code VARCHAR(50) DEFAULT '', discount_amount INT NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'new',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM");
+$pdo->exec("CREATE TABLE order_items (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL, product_id INT NOT NULL,
+    product_name VARCHAR(255) NOT NULL, price INT NOT NULL DEFAULT 0,
+    qty INT NOT NULL DEFAULT 1
+) ENGINE=MyISAM");
+
+// The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
 $pdo->beginTransaction();
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
@@ -27,19 +52,24 @@ $pdo->commit();
 
 $migration = $pdo->prepare('SELECT COUNT(*) FROM schema_migrations WHERE version=?');
 $migration->execute(['mysql-commerce-engine-money-v1']);
-if ((int)$migration->fetchColumn() !== 1) throw new RuntimeException('Money column migration was not recorded');
+if ((int)$migration->fetchColumn() !== 1) throw new RuntimeException('MySQL commerce migration was not recorded');
 
-foreach ([
-    ['products','price'],
-    ['orders','total'],
-    ['order_items','price'],
-] as [$tableName,$columnName]) {
+foreach ([['products','price'],['orders','total'],['order_items','price']] as [$tableName,$columnName]) {
     $typeQuery = $pdo->prepare(
         'SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
     );
     $typeQuery->execute([$tableName,$columnName]);
     if (strtolower((string)$typeQuery->fetchColumn()) !== 'bigint') {
         throw new RuntimeException('Expected BIGINT for ' . $tableName . '.' . $columnName);
+    }
+}
+foreach (['products','orders','order_items'] as $tableName) {
+    $engineQuery = $pdo->prepare(
+        'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?'
+    );
+    $engineQuery->execute([$tableName]);
+    if (strtolower((string)$engineQuery->fetchColumn()) !== 'innodb') {
+        throw new RuntimeException('Expected InnoDB engine for ' . $tableName);
     }
 }
 
@@ -63,14 +93,22 @@ if ((int)$pdo->query('SELECT stock FROM products WHERE id=' . $productId)->fetch
     throw new RuntimeException('MySQL cancellation did not restore stock');
 }
 
-foreach (['products','orders','order_items'] as $tableName) {
-    $engineQuery = $pdo->prepare(
-        'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?'
-    );
-    $engineQuery->execute([$tableName]);
-    if (strtolower((string)$engineQuery->fetchColumn()) !== 'innodb') {
-        throw new RuntimeException('Expected InnoDB engine for ' . $tableName);
-    }
-}
+// Also exercise a clean installation path with newly created InnoDB tables.
+$server = new PDO('mysql:host=' . $host . ';charset=utf8mb4', $user, $password, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+]);
+$server->exec('CREATE DATABASE mypress_fresh CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+$fresh = new PDO('mysql:host=' . $host . ';dbname=mypress_fresh;charset=utf8mb4', $user, $password, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+$fresh->exec('SET SESSION default_storage_engine=InnoDB');
+mp_create_tables($fresh);
+$fresh->beginTransaction();
+$fresh->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
+    ->execute(['fresh-admin', password_hash('long-test-password', PASSWORD_DEFAULT), 'fresh@example.test', 'Fresh Admin']);
+mp_seed($fresh, (int)$fresh->lastInsertId());
+$fresh->prepare('INSERT INTO options (opt_key,opt_value) VALUES (?,?)')->execute(['site_title','Fresh MyPress']);
+$fresh->commit();
 
-echo "PASS: MySQL schema, InnoDB migration, installer transaction, BIGINT money and shop transaction\n";
+echo "PASS: MySQL legacy migration, clean install transaction, InnoDB, BIGINT and shop transaction\n";
