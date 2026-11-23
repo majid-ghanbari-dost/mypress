@@ -5,15 +5,88 @@ require_once __DIR__ . '/../includes/admin-layout.php';
 $user = mp_require_role('admin');
 $pdo = mp_pdo();
 if (isset($_GET['download']) && $_GET['download'] === 'json') {
-    $data = [];
-    foreach (['users','categories','posts','comments','media','menus','products','orders','order_items','coupons','options'] as $tbl) {
-        $data[$tbl] = $pdo->query("SELECT * FROM $tbl")->fetchAll();
+    // Build the export incrementally on disk: fetchAll() for every table made
+    // memory usage proportional to the entire database size.
+    $backupDirectory = dirname(__DIR__) . '/data';
+    if (!is_dir($backupDirectory) || !is_writable($backupDirectory)) {
+        http_response_code(500);
+        exit('پوشه داده برای ساخت نسخه پشتیبان قابل نوشتن نیست.');
     }
-    // رمز عبور کاربران در خروجی JSON حذف می‌شود
-    foreach ($data['users'] as &$u) unset($u['password_hash']);
+
+    $backupPath = tempnam($backupDirectory, '.mypress-json-backup-');
+    if ($backupPath === false) {
+        http_response_code(500);
+        exit('ساخت فایل موقت پشتیبان انجام نشد.');
+    }
+    @chmod($backupPath, 0600);
+    $handle = fopen($backupPath, 'wb');
+    if ($handle === false) {
+        @unlink($backupPath);
+        http_response_code(500);
+        exit('باز کردن فایل موقت پشتیبان انجام نشد.');
+    }
+
+    register_shutdown_function(static function () use ($backupPath): void {
+        if (is_file($backupPath)) @unlink($backupPath);
+    });
+
+    try {
+        // Keep all table reads in one database snapshot. MySQL's default
+        // REPEATABLE READ gives the export a consistent view across tables.
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        }
+        $pdo->beginTransaction();
+
+        $write = static function (string $chunk) use ($handle): void {
+            $offset = 0;
+            $length = strlen($chunk);
+            while ($offset < $length) {
+                $written = fwrite($handle, substr($chunk, $offset));
+                if ($written === false || $written === 0) {
+                    throw new RuntimeException('Unable to write JSON backup file.');
+                }
+                $offset += $written;
+            }
+        };
+
+        $tables = ['users','categories','posts','comments','media','menus','products','orders','order_items','coupons','options'];
+        $write("{\n");
+        foreach ($tables as $tableIndex => $table) {
+            if ($tableIndex > 0) $write(",\n");
+            $write('  ' . json_encode($table, JSON_THROW_ON_ERROR) . ': [');
+            $statement = $pdo->query("SELECT * FROM `{$table}`");
+            $firstRow = true;
+            while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+                if ($table === 'users') unset($row['password_hash']);
+                $encoded = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+                $write(($firstRow ? "\n    " : ",\n    ") . $encoded);
+                $firstRow = false;
+            }
+            if (!$firstRow) $write("\n  ");
+            $write(']');
+        }
+        $write("\n}\n");
+        $pdo->commit();
+
+        if (!fclose($handle)) throw new RuntimeException('Unable to close JSON backup file.');
+        $handle = false;
+        $size = filesize($backupPath);
+        if ($size === false) throw new RuntimeException('Unable to read JSON backup size.');
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if (is_resource($handle)) fclose($handle);
+        @unlink($backupPath);
+        error_log('MyPress JSON backup failed: ' . $exception->getMessage());
+        http_response_code(500);
+        exit('ساخت نسخه پشتیبان JSON انجام نشد.');
+    }
+
     header('Content-Type: application/json; charset=utf-8');
+    header('Content-Length: ' . $size);
     header('Content-Disposition: attachment; filename="mypress-backup-' . date('Y-m-d') . '.json"');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    readfile($backupPath);
+    @unlink($backupPath);
     exit;
 }
 if (isset($_GET['download']) && $_GET['download'] === 'sqlite') {
