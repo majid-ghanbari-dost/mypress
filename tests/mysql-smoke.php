@@ -138,7 +138,7 @@ $adminId = (int)$pdo->lastInsertId();
 $longBody = str_repeat('x', 100000);
 $pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','draft',?)")
     ->execute(['Large content test', 'large-content-test', $longBody, $adminId]);
-$pdo->prepare("INSERT INTO products (name,slug,description,price,stock,status) VALUES (?,?,?,0,0,'draft')")
+$pdo->prepare("INSERT INTO products (id,name,slug,description,price,stock,status) VALUES (100,?,?,?,0,0,'draft')")
     ->execute(['Large description test', 'large-description-test', $longBody]);
 if (mp_delete_user($pdo, $adminId, $adminId)) {
     throw new RuntimeException('Administrator self-deletion unexpectedly succeeded');
