@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../modules/shop/shop.php';
+require_once __DIR__ . '/../includes/router.php';
 
 $checks = 0;
 function check(bool $condition, string $message): void {
@@ -91,6 +92,12 @@ check($productFilterIndexes === 2, 'Product search and stock indexes are install
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
 $adminId = (int)$pdo->lastInsertId();
+$largePostBody = str_repeat('p', 100000);
+$pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','published',?)")
+    ->execute(['List projection test', 'list-projection-test', $largePostBody, $adminId]);
+$listedPosts = mp_list_posts(10);
+check($listedPosts && !array_key_exists('content', $listedPosts[0]), 'Public post listings do not hydrate full content bodies');
+check(strlen((string)mp_get_post('list-projection-test')['content']) === 100000, 'Single-post detail still loads full content');
 check(!mp_delete_user($pdo, $adminId, $adminId), 'Administrator cannot delete own account');
 check(!mp_delete_user($pdo, $adminId, 999), 'Last administrator account cannot be deleted');
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
@@ -113,6 +120,15 @@ check(mp_login('testadmin', 'correct-horse-battery-staple', $pdo), 'Valid creden
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Test','test-product',100,1,'published')");
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Second','second-product',200,2,'published')");
 mp_session_start();
+$_SESSION['cart'] = [1 => 2];
+$productListings = mp_list_products(10);
+check($productListings && !array_key_exists('description', $productListings[0]), 'Product listings do not hydrate full descriptions');
+$cartItems = mp_cart_items();
+check($cartItems && !array_key_exists('description', $cartItems[0]), 'Cart item queries load only fields needed by checkout');
+$largeCart = [];
+for ($cartId = 1; $cartId <= 105; $cartId++) $largeCart[$cartId] = 1;
+$_SESSION['cart'] = $largeCart;
+check(count(mp_cart()) === 100, 'Cart input is capped at 100 distinct product lines');
 $_SESSION['cart'] = [1 => 2];
 $customer = ['customer_name'=>'Test Buyer','customer_phone'=>'09120000000','customer_address'=>'Test address'];
 check(mp_checkout($customer, $pdo) === 0, 'Checkout rejects quantity above stock');
