@@ -13,23 +13,26 @@ function mp_route(): array {
     return ['type' => 'home', 'slug' => ''];
 }
 
-function mp_get_post(string $slug, string $type = 'post'): ?array {
-    $st = mp_pdo()->prepare("SELECT p.*, u.display_name AS author_name, c.name AS category_name
+function mp_get_post(string $slug, string $type = 'post', ?PDO $connection = null): ?array {
+    $pdo = $connection ?? mp_pdo();
+    $st = $pdo->prepare("SELECT p.*, u.display_name AS author_name, c.name AS category_name
         FROM posts p LEFT JOIN users u ON u.id=p.author_id LEFT JOIN categories c ON c.id=p.category_id
         WHERE p.slug=? AND p.type=? AND p.status='published'");
     $st->execute([$slug, $type]);
     return $st->fetch() ?: null;
 }
-function mp_list_posts(int $limit = 10, string $search = ''): array {
+function mp_list_posts(int $limit = 10, string $search = '', ?PDO $connection = null): array {
+    $pdo = $connection ?? mp_pdo();
+    $limit = max(1, min(100, $limit));
     if ($search !== '') {
-        $st = mp_pdo()->prepare("SELECT p.*, u.display_name AS author_name FROM posts p
+        $st = $pdo->prepare("SELECT p.id, p.title, p.slug, p.excerpt, p.created_at, u.display_name AS author_name FROM posts p
             LEFT JOIN users u ON u.id=p.author_id
             WHERE p.type='post' AND p.status='published' AND (p.title LIKE ? OR p.content LIKE ?)
             ORDER BY p.created_at DESC LIMIT ?");
         $q = '%' . $search . '%';
         $st->execute([$q, $q, $limit]);
     } else {
-        $st = mp_pdo()->prepare("SELECT p.*, u.display_name AS author_name FROM posts p
+        $st = $pdo->prepare("SELECT p.id, p.title, p.slug, p.excerpt, p.created_at, u.display_name AS author_name FROM posts p
             LEFT JOIN users u ON u.id=p.author_id
             WHERE p.type='post' AND p.status='published' ORDER BY p.created_at DESC LIMIT ?");
         $st->execute([$limit]);

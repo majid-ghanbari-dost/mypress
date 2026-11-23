@@ -37,7 +37,7 @@ $totalRows = (int)$count->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-$statement = $pdo->prepare('SELECT * FROM posts' . $whereSql . ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+$statement = $pdo->prepare('SELECT id,title,slug,status,created_at FROM posts' . $whereSql . ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
 foreach ($params as $index => $value) $statement->bindValue($index + 1, $value, PDO::PARAM_STR);
 $statement->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
 $statement->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);

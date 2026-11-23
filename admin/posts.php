@@ -43,7 +43,7 @@ $totalRows = (int)$count->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-$statement = $pdo->prepare('SELECT p.*,u.display_name AS author_name FROM posts p LEFT JOIN users u ON u.id=p.author_id' . $whereSql . ' ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
+$statement = $pdo->prepare('SELECT p.id,p.title,p.status,p.created_at,u.display_name AS author_name FROM posts p LEFT JOIN users u ON u.id=p.author_id' . $whereSql . ' ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
 foreach ($params as $index => $value) {
     $statement->bindValue($index + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }

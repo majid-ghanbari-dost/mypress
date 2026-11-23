@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../modules/shop/shop.php';
+require_once __DIR__ . '/../includes/router.php';
 
 $checks = 0;
 function check(bool $condition, string $message): void {
@@ -46,9 +47,13 @@ check(in_array('login_attempts', $tables, true), 'Login throttling schema exists
 $indexes = $pdo->query("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 check(in_array('idx_login_attempts_lookup', $indexes, true), 'Username/IP throttle index exists');
 check(in_array('idx_login_attempts_ip_lookup', $indexes, true), 'Per-IP throttle index exists');
+check(in_array('idx_login_attempts_attempted_at', $indexes, true), 'Login attempt retention index exists');
+check(in_array('idx_comments_post_status_created_id', $indexes, true), 'Public comment lookup index exists');
+check(in_array('idx_public_rate_limits_window_start', $indexes, true), 'Public rate-limit retention index exists');
+check(in_array('public_rate_limits', $tables, true), 'Public rate-limit schema exists');
 mp_ensure_security_schema($pdo);
-$indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')")->fetchColumn();
-check($indexCount === 2, 'Security schema setup is idempotent and does not duplicate throttle indexes');
+$indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup','idx_login_attempts_attempted_at')")->fetchColumn();
+check($indexCount === 3, 'Security schema setup is idempotent and does not duplicate throttle indexes');
 check(in_array('schema_migrations', $tables, true), 'Schema migration ledger exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
@@ -61,9 +66,9 @@ $adminIndexNames = [
     'idx_posts_type_created_id','idx_posts_author_type_created_id',
     'idx_posts_type_status_created_id','idx_posts_author_type_status_created_id','idx_posts_title_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
-    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
+    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id','idx_orders_status_created_id',
     'idx_users_username_created_id','idx_users_display_name_created_id','idx_users_email_created_id','idx_users_role_created_id',
-    'idx_comments_status_created_id','idx_comments_author_created_id','idx_comments_email_created_id',
+    'idx_comments_status_created_id','idx_comments_author_created_id','idx_comments_email_created_id','idx_comments_post_status_created_id',
     'idx_media_filename_created_id','idx_media_original_name_created_id',
 ];
 $adminIndexCount = (int)$pdo->query(
@@ -87,6 +92,12 @@ check($productFilterIndexes === 2, 'Product search and stock indexes are install
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
 $adminId = (int)$pdo->lastInsertId();
+$largePostBody = str_repeat('p', 100000);
+$pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','published',?)")
+    ->execute(['List projection test', 'list-projection-test', $largePostBody, $adminId]);
+$listedPosts = mp_list_posts(10, '', $pdo);
+check($listedPosts && !array_key_exists('content', $listedPosts[0]), 'Public post listings do not hydrate full content bodies');
+check(strlen((string)mp_get_post('list-projection-test', 'post', $pdo)['content']) === 100000, 'Single-post detail still loads full content');
 check(!mp_delete_user($pdo, $adminId, $adminId), 'Administrator cannot delete own account');
 check(!mp_delete_user($pdo, $adminId, 999), 'Last administrator account cannot be deleted');
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
@@ -96,6 +107,9 @@ check(mp_delete_user($pdo, $secondAdminId, $adminId), 'One of multiple administr
 $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$secondAdminId]);
 check(!mp_delete_user($pdo, 99999, $adminId), 'Unknown user cannot be deleted');
 $_SERVER['REMOTE_ADDR'] = '203.0.113.17';
+check(mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit allows the first request');
+check(mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit allows requests within its threshold');
+check(!mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit blocks requests beyond its threshold');
 for ($attempt = 0; $attempt < 10; $attempt++) {
     check(!mp_login('testadmin', 'incorrect-password', $pdo), 'Incorrect password is rejected');
 }
@@ -106,6 +120,15 @@ check(mp_login('testadmin', 'correct-horse-battery-staple', $pdo), 'Valid creden
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Test','test-product',100,1,'published')");
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Second','second-product',200,2,'published')");
 mp_session_start();
+$_SESSION['cart'] = [1 => 2];
+$productListings = mp_list_products(10, $pdo);
+check($productListings && !array_key_exists('description', $productListings[0]), 'Product listings do not hydrate full descriptions');
+$cartItems = mp_cart_items($pdo);
+check($cartItems && !array_key_exists('description', $cartItems[0]), 'Cart item queries load only fields needed by checkout');
+$largeCart = [];
+for ($cartId = 1; $cartId <= 105; $cartId++) $largeCart[$cartId] = 1;
+$_SESSION['cart'] = $largeCart;
+check(count(mp_cart()) === 100, 'Cart input is capped at 100 distinct product lines');
 $_SESSION['cart'] = [1 => 2];
 $customer = ['customer_name'=>'Test Buyer','customer_phone'=>'09120000000','customer_address'=>'Test address'];
 check(mp_checkout($customer, $pdo) === 0, 'Checkout rejects quantity above stock');
@@ -130,5 +153,16 @@ check(mp_update_order_status($shippedOrder, 'shipped', $pdo), 'Processing order 
 check(!mp_update_order_status($shippedOrder, 'processing', $pdo), 'Shipped order cannot move backwards');
 check(!mp_update_order_status($shippedOrder, 'cancelled', $pdo), 'Shipped order cannot be auto-cancelled');
 check((int)$pdo->query('SELECT stock FROM products WHERE id=2')->fetchColumn() === 1, 'Rejected shipped cancellation leaves stock unchanged');
+
+$pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Rate Test','rate-test-product',100,10,'published')");
+for ($rateOrder = 1; $rateOrder <= 2; $rateOrder++) {
+    $_SESSION['cart'] = [3 => 1];
+    $rateCustomer = $customer;
+    if ($rateOrder === 1) $rateCustomer['customer_phone'] = '۰۹۱۲۱۲۳۴۵۶۷';
+    check(mp_checkout($rateCustomer, $pdo) > 0, 'COD checkout within the IP threshold succeeds');
+}
+$_SESSION['cart'] = [3 => 1];
+check(mp_checkout($customer, $pdo) === 0, 'COD checkout over the IP threshold is blocked');
+check((int)$pdo->query('SELECT stock FROM products WHERE id=3')->fetchColumn() === 8, 'Blocked COD checkout does not consume stock');
 
 echo "PASS: {$checks} checks\n";

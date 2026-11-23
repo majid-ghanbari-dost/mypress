@@ -93,6 +93,8 @@ function mp_ensure_security_schema(PDO $pdo): void {
         // The per-IP throttle query filters by ip_key without username_key.
         // A separate leading-column index prevents a full scan as the table grows.
         'idx_login_attempts_ip_lookup' => 'ip_key, attempted_at',
+        // Failed-login retention deletes by attempted_at alone.
+        'idx_login_attempts_attempted_at' => 'attempted_at',
     ];
     foreach ($indexes as $indexName => $columns) {
         mp_ensure_index($pdo, 'login_attempts', $indexName, $columns);
@@ -101,6 +103,15 @@ function mp_ensure_security_schema(PDO $pdo): void {
         version VARCHAR(64) PRIMARY KEY,
         applied_at DATETIME NOT NULL
     )");
+    $windowType = $mysql ? 'BIGINT' : 'INTEGER';
+    $pdo->exec("CREATE TABLE IF NOT EXISTS public_rate_limits (
+        action_key VARCHAR(32) NOT NULL,
+        subject_key CHAR(64) NOT NULL,
+        window_start $windowType NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (action_key, subject_key, window_start)
+    )");
+    mp_ensure_index($pdo, 'public_rate_limits', 'idx_public_rate_limits_window_start', 'window_start');
 
     // Order administration loads line items by order_id. Add this index to
     // existing installations once, not just to newly created databases.
@@ -218,6 +229,42 @@ function mp_ensure_security_schema(PDO $pdo): void {
         $pdo->prepare($insertSql)->execute([$mediaIndexMigration, date('Y-m-d H:i:s')]);
     }
 
+    // Public comment pages filter by post and moderation status, then sort by date.
+    $publicCommentIndexMigration = 'public-comment-query-index-v1';
+    $publicCommentIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $publicCommentIndexCheck->execute([$publicCommentIndexMigration]);
+    if (!$publicCommentIndexCheck->fetchColumn() && mp_table_exists($pdo, 'comments')) {
+        mp_ensure_index($pdo, 'comments', 'idx_comments_post_status_created_id', 'post_id, status, created_at, id');
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$publicCommentIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
+    // Match the 2 MiB application content limit on MySQL (TEXT is limited to 64 KiB).
+    $longContentMigration = 'mysql-long-content-columns-v1';
+    $longContentCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $longContentCheck->execute([$longContentMigration]);
+    if ($mysql && !$longContentCheck->fetchColumn() &&
+        mp_table_exists($pdo, 'posts') && mp_table_exists($pdo, 'products')) {
+        $pdo->exec('ALTER TABLE posts MODIFY content MEDIUMTEXT NOT NULL');
+        $pdo->exec('ALTER TABLE products MODIFY description MEDIUMTEXT NOT NULL');
+        $pdo->prepare('INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)')
+            ->execute([$longContentMigration, date('Y-m-d H:i:s')]);
+    }
+
+    // Order status filters are ordered by creation time in the admin queue.
+    $ordersStatusIndexMigration = 'orders-status-query-index-v1';
+    $ordersStatusIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $ordersStatusIndexCheck->execute([$ordersStatusIndexMigration]);
+    if (!$ordersStatusIndexCheck->fetchColumn() && mp_table_exists($pdo, 'orders')) {
+        mp_ensure_index($pdo, 'orders', 'idx_orders_status_created_id', 'status, created_at, id');
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$ordersStatusIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
     if ($mysql) {
@@ -279,8 +326,9 @@ function mp_create_tables(PDO $pdo): void {
     $isMysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
     $auto = $isMysql ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
     $text = 'TEXT';
+    $longText = $isMysql ? 'MEDIUMTEXT' : 'TEXT';
     // MySQL versions before 8.0.13 reject defaults on TEXT/BLOB columns.
-    $textDefault = $isMysql ? 'TEXT NOT NULL' : "TEXT NOT NULL DEFAULT ''";
+    $textDefault = $isMysql ? 'MEDIUMTEXT NOT NULL' : "TEXT NOT NULL DEFAULT ''";
     $money = $isMysql ? 'BIGINT' : 'INTEGER';
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id $auto, username VARCHAR(60) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL,
@@ -291,7 +339,7 @@ function mp_create_tables(PDO $pdo): void {
         type VARCHAR(20) NOT NULL DEFAULT 'post')");
     $pdo->exec("CREATE TABLE IF NOT EXISTS posts (
         id $auto, title VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
-        content $text NOT NULL, excerpt VARCHAR(500) DEFAULT '',
+        content $longText NOT NULL, excerpt VARCHAR(500) DEFAULT '',
         type VARCHAR(20) NOT NULL DEFAULT 'post', status VARCHAR(20) NOT NULL DEFAULT 'draft',
         category_id INTEGER DEFAULT NULL, tags VARCHAR(255) DEFAULT '',
         author_id INTEGER NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

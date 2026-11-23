@@ -31,6 +31,8 @@ e2e_check(
 );
 e2e_check(str_contains($apacheRules, 'config\\.php(?:\\..*)?'), 'Apache denies config.php and temporary sibling files');
 e2e_check(str_contains($nginxRules, 'config\\.php(?:\\..*)?'), 'Nginx denies config.php and temporary sibling files');
+e2e_check(str_contains($apacheRules, 'X-Content-Type-Options') && str_contains($apacheRules, 'Content-Security-Policy'), 'Apache config includes baseline security headers');
+e2e_check(str_contains($nginxRules, 'X-Content-Type-Options') && str_contains($nginxRules, 'Content-Security-Policy'), 'Nginx config includes baseline security headers');
 e2e_check(!str_contains($uploadRules, 'php_flag') && str_contains($uploadRules, 'Require all denied'), 'Uploads protection is PHP-FPM compatible and denies script extensions');
 
 function e2e_check(bool $condition, string $message): void {
@@ -211,6 +213,10 @@ try {
     // Fresh install and one-time installer lock.
     $install = e2e_request($baseUrl, $cookieAdmin, 'GET', 'install.php');
     e2e_check($install['status'] === 200 && str_contains($install['body'], 'نصب MyPress'), 'Installer page is served over HTTP');
+    e2e_check(str_contains($install['body'], 'PHP 8.1+') && str_contains($install['body'], 'fileinfo') &&
+        str_contains($install['body'], 'PDO SQLite'), 'Installer displays runtime extension prerequisites');
+    e2e_check(str_contains($install['headers'], 'X-Content-Type-Options: nosniff') &&
+        str_contains($install['headers'], 'Content-Security-Policy:'), 'Installer sends baseline security headers');
     $installToken = e2e_csrf($install);
 
     // Simulate another PHP worker holding the installer mutex. A second
@@ -252,6 +258,9 @@ try {
     // Public front page and seeded content.
     $home = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php');
     e2e_check($home['status'] === 200 && str_contains($home['body'], 'MyPress HTTP Test'), 'Public home page renders configured site title');
+    e2e_check(str_contains($home['headers'], 'X-Frame-Options: SAMEORIGIN') &&
+        str_contains($home['headers'], 'Referrer-Policy: strict-origin-when-cross-origin') &&
+        str_contains($home['headers'], 'Permissions-Policy:'), 'Public pages send baseline security headers');
     $seedPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=hello-world');
     e2e_check($seedPost['status'] === 200 && str_contains($seedPost['body'], 'سلام دنیا'), 'Seeded public post is readable');
 
@@ -280,6 +289,7 @@ try {
     e2e_check($goodLogin['status'] === 303 && str_contains($goodLogin['headers'], 'Location: index.php'), 'Valid administrator login redirects to dashboard');
     $dashboard = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/index.php');
     e2e_check($dashboard['status'] === 200 && str_contains($dashboard['body'], 'داشبورد'), 'Authenticated administrator can open dashboard');
+    e2e_check(str_contains($dashboard['headers'], 'Cache-Control: no-store') && str_contains($dashboard['headers'], 'Pragma: no-cache'), 'Private admin pages are not cacheable');
 
     // Content creation, publication and public rendering.
     $editor = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/post-edit.php?type=post');
@@ -303,6 +313,50 @@ try {
     e2e_check($savedPost['status'] === 303, 'Administrator can create and publish a post');
     $publicPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
     e2e_check($publicPost['status'] === 200 && str_contains($publicPost['body'], 'Rendered through the public HTTP route.'), 'Newly published post is rendered publicly');
+    $publicComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+        'csrf' => e2e_csrf($publicPost),
+        'comment_submit' => '1',
+        'post_id' => '3',
+        'slug' => 'http-e2e-published-article',
+        'ptype' => 'post',
+        'author' => 'HTTP Commenter',
+        'email' => 'commenter@example.test',
+        'content' => 'A public comment submitted through the real form.',
+    ]);
+    e2e_check($publicComment['status'] === 303, 'Public comment submission succeeds through the CSRF-protected HTTP form');
+    for ($commentAttempt = 2; $commentAttempt <= 5; $commentAttempt++) {
+        $additionalComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+            'csrf' => e2e_csrf($publicPost),
+            'comment_submit' => '1',
+            'post_id' => '3',
+            'slug' => 'http-e2e-published-article',
+            'ptype' => 'post',
+            'author' => 'HTTP Commenter',
+            'email' => 'commenter@example.test',
+            'content' => 'Rate limit fixture ' . $commentAttempt,
+        ]);
+        e2e_check($additionalComment['status'] === 303, 'Public comment within the IP threshold is accepted');
+    }
+    $blockedComment = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?post=http-e2e-published-article', [
+        'csrf' => e2e_csrf($publicPost),
+        'comment_submit' => '1',
+        'post_id' => '3',
+        'slug' => 'http-e2e-published-article',
+        'ptype' => 'post',
+        'author' => 'HTTP Commenter',
+        'email' => 'commenter@example.test',
+        'content' => 'This sixth comment must be blocked.',
+    ]);
+    e2e_check($blockedComment['status'] === 303, 'Public comment over the IP threshold is safely redirected');
+    $commentDbProbe = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
+    $commentProbe = $commentDbProbe->prepare("SELECT COUNT(*) FROM comments WHERE author=? AND status='pending'");
+    $commentProbe->execute(['HTTP Commenter']);
+    e2e_check((int)$commentProbe->fetchColumn() === 5, 'Public comment rate limit prevents the sixth pending comment');
+    $commentProbe->closeCursor();
+    $cleanupCommentProbe = $commentDbProbe->prepare("DELETE FROM comments WHERE author=?");
+    $cleanupCommentProbe->execute(['HTTP Commenter']);
+    $cleanupCommentProbe->closeCursor();
+    $commentDbProbe = null;
 
     $adminIdForFixtures = 0;
     $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
@@ -470,9 +524,19 @@ try {
     for ($fixture = 1; $fixture <= 26; $fixture++) {
         $commentFixture->execute([$commentPostId, 'Comment Fixture ' . $fixture, 'comment@example.test', 'Fixture comment']);
     }
-    $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php');
-    e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Comment moderation paginates its first 25 records');
-    $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?page=2');
+    $approvedCommentFixture = $fixtureDb->prepare("INSERT INTO comments (post_id,author,email,content,status) VALUES (?,?,?,?, 'approved')");
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
+        $approvedCommentFixture->execute([$commentPostId, 'Approved Fixture ' . $fixture, 'approved@example.test', 'Approved public comment']);
+    }
+    $publicCommentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
+    e2e_check(substr_count($publicCommentsPageOne['body'], '<div class="comment">') === 25 &&
+        str_contains($publicCommentsPageOne['body'], 'صفحه 1 از 2'), 'Public comments render a bounded first page of 25');
+    $publicCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article&comment_page=2');
+    e2e_check(substr_count($publicCommentsPageTwo['body'], '<div class="comment">') === 1 &&
+        str_contains($publicCommentsPageTwo['body'], 'صفحه 2 از 2'), 'Public comment pagination renders only the remaining comment');
+    $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=pending');
+    e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Pending comment moderation paginates its first 25 records');
+    $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=pending&page=2');
     e2e_check(substr_count($commentsPageTwo['body'], '<tr>') - 1 === 1, 'Comment moderation renders only the remaining record on page two');
     $filteredComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending');
     e2e_check($filteredComments['status'] === 200 && substr_count($filteredComments['body'], '<tr>') - 1 === 25, 'Comment author prefix search and pending status filter compose correctly');
@@ -480,7 +544,8 @@ try {
     $filteredCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending&page=2');
     e2e_check($filteredCommentsPageTwo['status'] === 200 && substr_count($filteredCommentsPageTwo['body'], '<tr>') - 1 === 1, 'Filtered comment pagination returns the final matching comment');
     $approvedComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=approved');
-    e2e_check($approvedComments['status'] === 200 && substr_count($approvedComments['body'], '<tr>') === 1, 'Comment status filter handles an empty approved queue');
+    e2e_check($approvedComments['status'] === 200 && substr_count($approvedComments['body'], '<tr>') - 1 === 25 &&
+        str_contains($approvedComments['body'], 'صفحه 1 از 2'), 'Approved comment filter paginates its first 25 records');
     $emailComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=comment%40example.test');
     e2e_check($emailComments['status'] === 200 && substr_count($emailComments['body'], '<tr>') - 1 === 25, 'Comment search matches author email prefixes');
 
@@ -499,6 +564,7 @@ try {
     // Backups must be downloadable and must not disclose password hashes.
     $jsonBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=json');
     e2e_check($jsonBackup['status'] === 200 && str_contains($jsonBackup['headers'], 'application/json'), 'Administrator can download JSON backup');
+    e2e_check(str_contains($jsonBackup['headers'], 'Cache-Control: no-store') && str_contains($jsonBackup['headers'], 'Pragma: no-cache'), 'Sensitive JSON backup responses are not cacheable');
     e2e_check(str_contains($jsonBackup['body'], 'HTTP E2E Product') && !str_contains($jsonBackup['body'], 'password_hash'), 'JSON backup contains business data but omits password hashes');
     $decodedJsonBackup = json_decode($jsonBackup['body'], true, 512, JSON_THROW_ON_ERROR);
     e2e_check(is_array($decodedJsonBackup) && isset($decodedJsonBackup['users'], $decodedJsonBackup['orders']), 'JSON backup is valid structured JSON with expected tables');
@@ -506,6 +572,7 @@ try {
     e2e_check(count($temporaryJsonBackups) === 0, 'Temporary JSON export file is removed after the download');
     $sqliteBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=sqlite');
     e2e_check($sqliteBackup['status'] === 200 && str_starts_with($sqliteBackup['body'], 'SQLite format 3'), 'Administrator can download a valid SQLite database backup');
+    e2e_check(str_contains($sqliteBackup['headers'], 'Cache-Control: no-store') && str_contains($sqliteBackup['headers'], 'Pragma: no-cache'), 'Sensitive SQLite backup responses are not cacheable');
     $temporaryBackups = glob($docRoot . '/data/.mypress-backup-*.sqlite') ?: [];
     e2e_check(count($temporaryBackups) === 0, 'Temporary SQLite snapshot is removed after the download');
 

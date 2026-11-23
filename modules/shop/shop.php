@@ -12,10 +12,11 @@ function mp_get_product(string $slug): ?array {
     return $statement->fetch() ?: null;
 }
 
-function mp_list_products(int $limit = 24): array {
+function mp_list_products(int $limit = 24, ?PDO $connection = null): array {
+    $pdo = $connection ?? mp_pdo();
     $limit = max(1, min(100, $limit));
-    $statement = mp_pdo()->prepare(
-        'SELECT * FROM products WHERE status=\'published\' ORDER BY created_at DESC LIMIT ?'
+    $statement = $pdo->prepare(
+        'SELECT id,name,slug,price,stock,image,created_at FROM products WHERE status=\'published\' ORDER BY created_at DESC LIMIT ?'
     );
     $statement->bindValue(1, $limit, PDO::PARAM_INT);
     $statement->execute();
@@ -27,7 +28,9 @@ function mp_cart(): array {
     $cart = $_SESSION['cart'] ?? [];
     if (!is_array($cart)) return [];
     $clean = [];
+    $seen = 0;
     foreach ($cart as $id => $qty) {
+        if ($seen++ >= 100) break;
         $id = filter_var($id, FILTER_VALIDATE_INT);
         $qty = filter_var($qty, FILTER_VALIDATE_INT);
         if ($id && $id > 0 && $qty && $qty > 0) $clean[(int)$id] = min(99, (int)$qty);
@@ -46,17 +49,22 @@ function mp_cart_add(int $productId, int $qty = 1): void {
     $product = $statement->fetch();
     if (!$product || (int)$product['stock'] < 1) return;
     $cart = mp_cart();
+    if (!isset($cart[$productId]) && count($cart) >= 100) {
+        mp_flash('سبد خرید نمی‌تواند بیش از ۱۰۰ محصول متفاوت داشته باشد.', 'err');
+        return;
+    }
     $cart[$productId] = min((int)$product['stock'], 99, ($cart[$productId] ?? 0) + $qty);
     $_SESSION['cart'] = $cart;
 }
 
-function mp_cart_items(): array {
+function mp_cart_items(?PDO $connection = null): array {
+    $pdo = $connection ?? mp_pdo();
     $cart = mp_cart();
     if (!$cart) return [];
     $ids = array_keys($cart);
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $statement = mp_pdo()->prepare(
-        "SELECT * FROM products WHERE status='published' AND id IN ($placeholders)"
+    $statement = $pdo->prepare(
+        "SELECT id,name,price,stock FROM products WHERE status='published' AND id IN ($placeholders)"
     );
     $statement->execute($ids);
     $items = [];
@@ -96,11 +104,22 @@ function mp_checkout(array $data, ?PDO $connection = null): int {
     if (!$cart) return 0;
     $name = trim((string)($data['customer_name'] ?? ''));
     $phone = trim((string)($data['customer_phone'] ?? ''));
+    $phone = strtr($phone, [
+        '۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9',
+        '٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9',
+    ]);
+    $phone = preg_replace('/[\\s().-]+/', '', $phone) ?? $phone;
     $address = trim((string)($data['customer_address'] ?? ''));
-    if ($name === '' || strlen($name) > 150 || $phone === '' || strlen($phone) > 50 ||
+    if ($name === '' || strlen($name) > 150 || strlen($phone) > 50 ||
+        !preg_match('/^\\+?[0-9]{7,20}$/', $phone) ||
         $address === '' || strlen($address) > 5000) return 0;
 
     $pdo = $connection ?? mp_pdo();
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    if (!mp_public_rate_limit('order-ip', $ip, 5, 900, $pdo) ||
+        !mp_public_rate_limit('order-phone', $phone, 5, 86400, $pdo)) {
+        return 0;
+    }
     try {
         $pdo->beginTransaction();
         $items = [];

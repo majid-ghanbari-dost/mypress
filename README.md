@@ -16,13 +16,14 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 
 - Posts and pages with draft/published workflow
 - Admin, editor and author roles; authors are limited to their own drafts and see only their own dashboard metrics; self-deletion and deletion of the final administrator are blocked transactionally
-- CSRF protection and hardened session cookies
+- CSRF protection, hardened session cookies and baseline browser security headers
 - Login throttling (10 failed attempts per username/IP and 30 per IP in 15 minutes)
 - Image upload validation by file bytes, MIME and dimensions
 - SQLite and MySQL/MariaDB connection support
 - Shop with server-side price/stock validation, transactional order creation and atomic stock decrement
 - Order cancellation restores stock once; order statuses only move forward (new → processing → shipped), shipped/cancelled orders are terminal
-- Comments moderation, menus, media library and basic SEO metadata
+- Comments moderation with public anti-spam throttling, menus, media library and basic SEO metadata
+- COD order throttling by client IP and normalized phone number to reduce automated stock reservation abuse
 - PHP syntax checks and SQLite smoke tests in GitHub Actions
 
 ## Install
@@ -34,7 +35,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 5. Sign in at /admin/login.php.
 6. Confirm config.php and data/installed.lock exist and are not publicly downloadable.
 
-The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. The first MySQL schema initialization upgrades legacy MyISAM commerce tables to InnoDB and 64-bit money columns; the database account needs ALTER permission for this one-time migration. Never commit config.php, database files, backups, or uploaded customer data.
+The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. MySQL schema upgrades may require temporary ALTER permission, including the migration of long content fields to MEDIUMTEXT; the database account also needs ALTER for the legacy MyISAM-to-InnoDB and 64-bit money migration. Never commit config.php, database files, backups, or uploaded customer data.
 
 ## Deployment checklist
 
@@ -46,7 +47,7 @@ See [docs/backup-restore.md](docs/backup-restore.md) for SQLite restore, MySQL d
 
 ## Web server hardening
 
-The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. Keep config.php, data/, backups, logs and private runtime files outside the public document root whenever possible.
+The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. The current installer writes `config.php` in the project root and the bootstrap expects it there; protect direct access with the supplied Apache/Nginx rules. Relocating it requires a tested deployment-specific path/symlink arrangement. Keep the SQLite database, backups, logs and other private runtime files outside the public document root whenever possible.
 
 ## Development checks
 
@@ -54,7 +55,7 @@ The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does n
     php tests/run.php
     php tests/http-e2e.php
 
-GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The isolated HTTP E2E suite makes a temporary runtime copy and exercises installation, installer lock, public rendering, CSRF enforcement, admin login, content publication, valid/invalid image uploads, product creation, cart and COD checkout, JSON/SQLite backups, author permissions, draft privacy and POST-only logout. It requires the PHP cURL, pdo_sqlite and fileinfo extensions; CI runs it on PHP 8.1, 8.2 and 8.3. The installer is structured to avoid MySQL's implicit-commit behavior around DDL. After all test jobs pass on `main`, CI builds a clean `mypress-2.0.0-staging.zip` runtime package and a SHA-256 checksum as a 14-day Actions artifact; use this for staging validation, not as evidence of production deployment.
+GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables and a CLI dump/restore rehearsal into an empty database. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The isolated HTTP E2E suite makes a temporary runtime copy and exercises installation, installer lock, public rendering, CSRF enforcement, admin login, content publication, valid/invalid image uploads, product creation, cart and COD checkout, JSON/SQLite backups, author permissions, draft privacy and POST-only logout. It requires the PHP cURL, pdo_sqlite and fileinfo extensions; CI runs it on PHP 8.1, 8.2 and 8.3. The installer is structured to avoid MySQL's implicit-commit behavior around DDL. After all test jobs pass on `main`, CI builds a clean `mypress-2.0.0-staging.zip` runtime package and a SHA-256 checksum as a 14-day Actions artifact; use this for staging validation, not as evidence of production deployment.
 
 ## Important limitations before production use
 

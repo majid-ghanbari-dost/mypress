@@ -17,7 +17,18 @@ $pdo = new PDO($dsn, $user, $password, [
 ]);
 $pdo->exec('SET SESSION default_storage_engine=InnoDB');
 
-// Simulate a MyPress 1.0 database: legacy 32-bit money columns on MyISAM tables.
+
+
+// Simulate a MyPress 1.0 database with legacy TEXT content and 32-bit money columns.
+$pdo->exec("CREATE TABLE posts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
+    content TEXT NOT NULL, excerpt VARCHAR(500) DEFAULT '',
+    type VARCHAR(20) NOT NULL DEFAULT 'post', status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    category_id INT DEFAULT NULL, tags VARCHAR(255) DEFAULT '',
+    author_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB");
 $pdo->exec("CREATE TABLE products (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL, slug VARCHAR(191) NOT NULL UNIQUE,
@@ -44,20 +55,37 @@ $pdo->exec("CREATE TABLE order_items (
 // The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
 
+if (!mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo) ||
+    !mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo) ||
+    mp_public_rate_limit('mysql-smoke', 'mysql-client-1', 2, 60, $pdo)) {
+    throw new RuntimeException('MySQL public rate-limit upsert did not enforce its threshold');
+}
+
+$longTextTypes = $pdo->prepare(
+    'SELECT data_type FROM information_schema.columns
+     WHERE table_schema=DATABASE() AND table_name=? AND column_name=?'
+);
+foreach ([['posts', 'content'], ['products', 'description']] as [$table, $column]) {
+    $longTextTypes->execute([$table, $column]);
+    if (strtolower((string)$longTextTypes->fetchColumn()) !== 'mediumtext') {
+        throw new RuntimeException("Expected {$table}.{$column} to use MEDIUMTEXT on MySQL");
+    }
+}
+
 // The per-IP throttle query has no username_key predicate, so its leading
 // index must exist on MySQL as well as SQLite.
 $throttleIndexes = $pdo->prepare(
     "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
      WHERE table_schema=DATABASE() AND table_name='login_attempts'
-       AND index_name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')"
+       AND index_name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup','idx_login_attempts_attempted_at')"
 );
 $throttleIndexes->execute();
-if ((int)$throttleIndexes->fetchColumn() !== 2) {
-    throw new RuntimeException('Expected both MySQL login throttle indexes');
+if ((int)$throttleIndexes->fetchColumn() !== 3) {
+    throw new RuntimeException('Expected all MySQL login throttle and retention indexes');
 }
 mp_ensure_security_schema($pdo);
 $throttleIndexes->execute();
-if ((int)$throttleIndexes->fetchColumn() !== 2) {
+if ((int)$throttleIndexes->fetchColumn() !== 3) {
     throw new RuntimeException('Repeated MySQL security schema setup changed throttle indexes');
 }
 $orderItemIndex = $pdo->prepare(
@@ -74,7 +102,7 @@ $adminIndexNames = [
     'idx_posts_type_status_created_id','idx_posts_author_type_status_created_id','idx_posts_title_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
     'idx_products_created_id','idx_products_status_created_id',
-    'idx_products_name_created_id','idx_products_stock_created_id','idx_orders_created_id',
+    'idx_products_name_created_id','idx_products_stock_created_id','idx_orders_created_id','idx_orders_status_created_id',
     'idx_orders_customer_name_created_id','idx_orders_customer_phone_created_id',
 ];
 $adminIndexQuery = $pdo->prepare(
@@ -107,6 +135,11 @@ if ((int)$postTitlePrefix->fetchColumn() !== 191) {
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
 $adminId = (int)$pdo->lastInsertId();
+$longBody = str_repeat('x', 100000);
+$pdo->prepare("INSERT INTO posts (title,slug,content,type,status,author_id) VALUES (?,?,?,'post','draft',?)")
+    ->execute(['Large content test', 'large-content-test', $longBody, $adminId]);
+$pdo->prepare("INSERT INTO products (id,name,slug,description,price,stock,status) VALUES (100,?,?,?,0,0,'draft')")
+    ->execute(['Large description test', 'large-description-test', $longBody]);
 if (mp_delete_user($pdo, $adminId, $adminId)) {
     throw new RuntimeException('Administrator self-deletion unexpectedly succeeded');
 }

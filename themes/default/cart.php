@@ -1,5 +1,7 @@
 <?php // themes/default/cart.php — سبد خرید + تسویه دستی / COD
-$items = mp_cart_items(); $total = mp_cart_total();
+$items = mp_cart_items();
+$total = 0;
+foreach ($items as $cartItem) $total += (int)$cartItem['line_total'];
 if ($route['type'] === 'checkout' && isset($_GET['order'])): ?>
   <h2>✅ سفارش ثبت شد</h2>
   <p>شماره سفارش شما: <b><?= (int)$_GET['order'] ?></b></p>

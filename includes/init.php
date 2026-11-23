@@ -10,6 +10,7 @@ if (!file_exists($configFile) && !$inInstall) {
 }
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+mp_security_headers();
 require_once __DIR__ . '/auth.php';
 mp_session_start();
 if (!($GLOBALS['mp_no_db'] ?? false) && file_exists($configFile)) {

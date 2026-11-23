@@ -86,7 +86,7 @@ $totalRows = (int)$countQuery->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-$productQuery = $pdo->prepare('SELECT p.*,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id' . $whereSql . ' ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
+$productQuery = $pdo->prepare('SELECT p.id,p.name,p.slug,p.price,p.stock,p.category_id,p.status,p.created_at,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id' . $whereSql . ' ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
 foreach ($params as $index => $value) {
     $productQuery->bindValue($index + 1, $value, PDO::PARAM_STR);
 }

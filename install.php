@@ -5,15 +5,24 @@ error_reporting(E_ALL);
 $root = __DIR__;
 $configFile = $root . '/config.php';
 $lockFile = $root . '/data/installed.lock';
+require_once $root . '/includes/helpers.php';
+mp_security_headers();
 if (file_exists($configFile) || file_exists($lockFile)) {
     http_response_code(403);
     exit('MyPress قبلاً نصب شده است. برای نصب مجدد، ابتدا از اطلاعات نسخه فعلی پشتیبان تهیه کنید.');
 }
 require_once $root . '/includes/db.php';
-require_once $root . '/includes/helpers.php';
 mp_session_start();
 $error = '';
 $done = false;
+$runtimeChecks = [
+    'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
+    'PDO' => extension_loaded('pdo'),
+    'fileinfo' => extension_loaded('fileinfo'),
+    'PDO SQLite' => extension_loaded('pdo_sqlite'),
+    'PDO MySQL' => extension_loaded('pdo_mysql'),
+];
+$httpsActive = !empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mp_csrf_check();
@@ -30,11 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbName) &&
         preg_match('/^[a-zA-Z0-9_.@-]{1,128}$/', $dbUser)
     );
+    $requiredDriver = $dbType === 'mysql' ? 'pdo_mysql' : 'pdo_sqlite';
+    $runtimeReady = version_compare(PHP_VERSION, '8.1.0', '>=') &&
+        extension_loaded('pdo') && extension_loaded('fileinfo') && extension_loaded($requiredDriver);
 
-    if ($siteTitle === '' || strlen($siteTitle) > 150 ||
+    if (!$runtimeReady) {
+        $error = 'پیش‌نیازهای PHP یا درایور پایگاه داده انتخاب‌شده روی سرور کامل نیست.';
+    } elseif ($siteTitle === '' || strlen($siteTitle) > 150 ||
         !preg_match('/^[a-zA-Z0-9_.-]{3,60}$/', $adminUser) ||
         strlen($adminPass) < 12 || strlen($adminPass) > 4096 ||
-        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || !$mysqlConfigValid) {
+        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || strlen($adminEmail) > 150 || !$mysqlConfigValid) {
         $error = 'عنوان سایت، نام کاربری (۳ تا ۶۰ نویسه انگلیسی)، ایمیل یا رمز عبور معتبر نیست. رمز باید حداقل ۱۲ نویسه باشد.';
     } else {
         $dataDirectory = $root . '/data';
@@ -123,6 +137,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body><main class="install-box">
 <h1>🧩 نصب MyPress</h1>
 <p>سیستم مدیریت وب‌سایت شخصی — سبک و مستقل.</p>
+<section class="post-card" style="margin:16px 0">
+<h2>بررسی پیش‌نیازهای سرور</h2>
+<ul>
+<?php foreach ($runtimeChecks as $requirement => $available): ?>
+<li><?= e($requirement) ?>: <b><?= $available ? 'موجود' : 'ناموجود' ?></b></li>
+<?php endforeach; ?>
+</ul>
+<?php if (!$httpsActive): ?><p class="flash flash-err">برای نصب روی سایت عمومی، ابتدا HTTPS را فعال کنید. این هشدار در محیط آزمایشی محلی قابل چشم‌پوشی است.</p><?php endif; ?>
+</section>
 <?php if ($done): ?>
 <div class="flash flash-ok">نصب کامل شد.</div>
 <p><a class="btn" href="index.php">مشاهده سایت</a> <a class="btn" href="admin/login.php">ورود به پنل مدیریت</a></p>
@@ -133,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <label>عنوان سایت <input name="site_title" required maxlength="150" value="سایت من"></label>
 <label>نام کاربری مدیر <input name="admin_user" required minlength="3" maxlength="60" pattern="[A-Za-z0-9_.-]+" dir="ltr" autocomplete="username"></label>
 <label>رمز عبور مدیر (حداقل ۱۲ نویسه) <input type="password" name="admin_pass" required minlength="12" maxlength="4096" dir="ltr" autocomplete="new-password"></label>
-<label>ایمیل مدیر <input type="email" name="admin_email" required dir="ltr"></label>
+<label>ایمیل مدیر <input type="email" name="admin_email" required maxlength="150" dir="ltr"></label>
 <label>پایگاه داده <select name="db_type" id="db_type"><option value="sqlite">SQLite</option><option value="mysql">MySQL / MariaDB</option></select></label>
 <div id="mysql-fields" style="display:none">
 <label>هاست <input name="db_host" value="localhost" dir="ltr"></label>
