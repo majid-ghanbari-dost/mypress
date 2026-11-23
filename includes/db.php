@@ -40,13 +40,13 @@ function mp_ensure_security_schema(PDO $pdo): void {
         )->fetchColumn();
         if ($tablesReady === 3) {
             $check = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
-            $check->execute(['money-columns-bigint-v1']);
+            $check->execute(['mysql-commerce-engine-money-v1']);
             if (!$check->fetchColumn()) {
-                $pdo->exec('ALTER TABLE products MODIFY price BIGINT NOT NULL DEFAULT 0');
-                $pdo->exec('ALTER TABLE orders MODIFY total BIGINT NOT NULL DEFAULT 0, MODIFY discount_amount BIGINT NOT NULL DEFAULT 0');
-                $pdo->exec('ALTER TABLE order_items MODIFY price BIGINT NOT NULL DEFAULT 0');
-                $pdo->prepare('INSERT INTO schema_migrations (version,applied_at) VALUES (?,?)')
-                    ->execute(['money-columns-bigint-v1', date('Y-m-d H:i:s')]);
+                $pdo->exec('ALTER TABLE products ENGINE=InnoDB, MODIFY price BIGINT NOT NULL DEFAULT 0');
+                $pdo->exec('ALTER TABLE orders ENGINE=InnoDB, MODIFY total BIGINT NOT NULL DEFAULT 0, MODIFY discount_amount BIGINT NOT NULL DEFAULT 0');
+                $pdo->exec('ALTER TABLE order_items ENGINE=InnoDB, MODIFY price BIGINT NOT NULL DEFAULT 0');
+                $pdo->prepare('INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)')
+                    ->execute(['mysql-commerce-engine-money-v1', date('Y-m-d H:i:s')]);
             }
         }
     }

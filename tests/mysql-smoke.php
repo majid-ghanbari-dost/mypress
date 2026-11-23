@@ -26,7 +26,7 @@ $pdo->prepare('INSERT INTO options (opt_key,opt_value) VALUES (?,?)')->execute([
 $pdo->commit();
 
 $migration = $pdo->prepare('SELECT COUNT(*) FROM schema_migrations WHERE version=?');
-$migration->execute(['money-columns-bigint-v1']);
+$migration->execute(['mysql-commerce-engine-money-v1']);
 if ((int)$migration->fetchColumn() !== 1) throw new RuntimeException('Money column migration was not recorded');
 
 $columns = $pdo->query(
@@ -61,4 +61,14 @@ if ((int)$pdo->query('SELECT stock FROM products WHERE id=' . $productId)->fetch
     throw new RuntimeException('MySQL cancellation did not restore stock');
 }
 
-echo "PASS: MySQL schema, migration, installer transaction, BIGINT money and shop transaction\n";
+$engines = $pdo->query(
+    "SELECT table_name,engine FROM information_schema.tables
+     WHERE table_schema=DATABASE() AND table_name IN ('products','orders','order_items')"
+)->fetchAll();
+foreach ($engines as $table) {
+    if (strtolower((string)$table['engine']) !== 'innodb') {
+        throw new RuntimeException('Expected InnoDB engine for ' . $table['table_name']);
+    }
+}
+
+echo "PASS: MySQL schema, InnoDB migration, installer transaction, BIGINT money and shop transaction\n";
