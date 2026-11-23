@@ -16,7 +16,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 
 - Posts and pages with draft/published workflow
 - Admin, editor and author roles; authors are limited to their own drafts and see only their own dashboard metrics; self-deletion and deletion of the final administrator are blocked transactionally
-- CSRF protection and hardened session cookies
+- CSRF protection, hardened session cookies and baseline browser security headers
 - Login throttling (10 failed attempts per username/IP and 30 per IP in 15 minutes)
 - Image upload validation by file bytes, MIME and dimensions
 - SQLite and MySQL/MariaDB connection support
@@ -34,7 +34,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 5. Sign in at /admin/login.php.
 6. Confirm config.php and data/installed.lock exist and are not publicly downloadable.
 
-The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. The first MySQL schema initialization upgrades legacy MyISAM commerce tables to InnoDB and 64-bit money columns; the database account needs ALTER permission for this one-time migration. Never commit config.php, database files, backups, or uploaded customer data.
+The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. MySQL schema upgrades may require temporary ALTER permission, including the migration of long content fields to MEDIUMTEXT; the database account also needs ALTER for the legacy MyISAM-to-InnoDB and 64-bit money migration. Never commit config.php, database files, backups, or uploaded customer data.
 
 ## Deployment checklist
 
