@@ -107,6 +107,9 @@ if (isset($_GET['download']) && $_GET['download'] === 'json') {
         exit('ساخت نسخه پشتیبان JSON انجام نشد.');
     }
 
+    header('Cache-Control: no-store, private, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Length: ' . $size);
     header('Content-Disposition: attachment; filename="mypress-backup-' . date('Y-m-d') . '.json"');
@@ -145,6 +148,9 @@ if (isset($_GET['download']) && $_GET['download'] === 'sqlite') {
         exit('ساخت نسخه پشتیبان SQLite انجام نشد.');
     }
 
+    header('Cache-Control: no-store, private, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     header('Content-Type: application/octet-stream');
     header('Content-Length: ' . $size);
     header('Content-Disposition: attachment; filename="mypress-' . date('Y-m-d') . '.sqlite"');
