@@ -253,6 +253,18 @@ function mp_ensure_security_schema(PDO $pdo): void {
             ->execute([$longContentMigration, date('Y-m-d H:i:s')]);
     }
 
+    // Order status filters are ordered by creation time in the admin queue.
+    $ordersStatusIndexMigration = 'orders-status-query-index-v1';
+    $ordersStatusIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $ordersStatusIndexCheck->execute([$ordersStatusIndexMigration]);
+    if (!$ordersStatusIndexCheck->fetchColumn() && mp_table_exists($pdo, 'orders')) {
+        mp_ensure_index($pdo, 'orders', 'idx_orders_status_created_id', 'status, created_at, id');
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$ordersStatusIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
     if ($mysql) {
