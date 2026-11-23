@@ -4,7 +4,7 @@ Use this checklist for a staging or production installation. Completing automate
 
 ## 1. Hosting prerequisites
 
-- [ ] PHP 8.1 or newer is selected for the domain.
+- [ ] PHP 8.1 or newer is selected for the domain, with PDO and `fileinfo` enabled plus the selected database driver (`pdo_sqlite` or `pdo_mysql`).
 - [ ] PDO is enabled.
 - [ ] Enable `pdo_sqlite` for SQLite or `pdo_mysql` for MySQL/MariaDB.
 - [ ] Enable `fileinfo` for server-side image MIME validation.
