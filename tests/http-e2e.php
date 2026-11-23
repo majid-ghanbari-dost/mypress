@@ -433,7 +433,7 @@ try {
     $filteredOrdersOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=Pagination+Fixture&status=new');
     e2e_check($filteredOrdersOne['status'] === 200 && substr_count($filteredOrdersOne['body'], '<div class="post-card">') === 25, 'Order search and status filters return the first 25 matching records');
     e2e_check(str_contains($filteredOrdersOne['body'], 'name="q"') && str_contains($filteredOrdersOne['body'], 'name="status"'), 'Order search and status filters remain visible');
-    e2e_check(str_contains($filteredOrdersOne['body'], 'q=Pagination%20Fixture') && str_contains($filteredOrdersOne['body'], 'status=new'), 'Order pagination preserves active search and status filters');
+    e2e_check(str_contains($filteredOrdersOne['body'], 'q=Pagination+Fixture') && str_contains($filteredOrdersOne['body'], 'status=new'), 'Order pagination preserves active search and status filters');
     $filteredOrdersTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=Pagination%20Fixture&status=new&page=2');
     e2e_check($filteredOrdersTwo['status'] === 200 && substr_count($filteredOrdersTwo['body'], '<div class="post-card">') === 1, 'Filtered order pagination returns the final matching record');
     $noMatchOrders = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=NoSuchCustomer&status=new');
