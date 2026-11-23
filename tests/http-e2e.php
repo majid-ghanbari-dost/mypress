@@ -430,6 +430,14 @@ try {
     $ordersPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?page=2');
     e2e_check($ordersPageTwo['status'] === 200 && substr_count($ordersPageTwo['body'], '<div class="post-card">') === 2, 'Order administration renders only remaining records on the second page');
     e2e_check(str_contains($ordersPageTwo['body'], 'HTTP Test Buyer'), 'Second order page retains the older real order and its details');
+    $filteredOrdersOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=Pagination%20Fixture&status=new');
+    e2e_check($filteredOrdersOne['status'] === 200 && substr_count($filteredOrdersOne['body'], '<div class="post-card">') === 25, 'Order search and status filters return the first 25 matching records');
+    e2e_check(str_contains($filteredOrdersOne['body'], 'name="q"') && str_contains($filteredOrdersOne['body'], 'name="status"'), 'Order search and status filters remain visible');
+    e2e_check(str_contains($filteredOrdersOne['body'], 'q=Pagination%20Fixture') && str_contains($filteredOrdersOne['body'], 'status=new'), 'Order pagination preserves active search and status filters');
+    $filteredOrdersTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=Pagination%20Fixture&status=new&page=2');
+    e2e_check($filteredOrdersTwo['status'] === 200 && substr_count($filteredOrdersTwo['body'], '<div class="post-card">') === 1, 'Filtered order pagination returns the final matching record');
+    $noMatchOrders = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?q=NoSuchCustomer&status=new');
+    e2e_check($noMatchOrders['status'] === 200 && str_contains($noMatchOrders['body'], 'هنوز سفارشی ثبت نشده است'), 'Order search handles empty result sets');
 
     $commentPostId = (int)$fixtureDb->query("SELECT id FROM posts WHERE slug='http-e2e-published-article'")->fetchColumn();
     $commentFixture = $fixtureDb->prepare("INSERT INTO comments (post_id,author,email,content,status) VALUES (?,?,?,?, 'pending')");
