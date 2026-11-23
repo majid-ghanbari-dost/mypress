@@ -79,7 +79,8 @@ check(!mp_update_order_status($orderId, 'processing', $pdo), 'Cancelled order ca
 $_SESSION['cart'] = [2 => 1];
 $shippedOrder = mp_checkout($customer, $pdo);
 check($shippedOrder > 0, 'Second checkout creates an order');
-check(mp_update_order_status($shippedOrder, 'shipped', $pdo), 'Order can be marked shipped');
+check(mp_update_order_status($shippedOrder, 'processing', $pdo), 'New order can enter processing');
+check(mp_update_order_status($shippedOrder, 'shipped', $pdo), 'Processing order can be marked shipped');
 check(!mp_update_order_status($shippedOrder, 'processing', $pdo), 'Shipped order cannot move backwards');
 check(!mp_update_order_status($shippedOrder, 'cancelled', $pdo), 'Shipped order cannot be auto-cancelled');
 check((int)$pdo->query('SELECT stock FROM products WHERE id=2')->fetchColumn() === 1, 'Rejected shipped cancellation leaves stock unchanged');
