@@ -17,16 +17,7 @@ $pdo = new PDO($dsn, $user, $password, [
 ]);
 $pdo->exec('SET SESSION default_storage_engine=InnoDB');
 
-$longTextTypes = $pdo->prepare(
-    'SELECT data_type FROM information_schema.columns
-     WHERE table_schema=DATABASE() AND table_name=? AND column_name=?'
-);
-foreach ([['posts', 'content'], ['products', 'description']] as [$table, $column]) {
-    $longTextTypes->execute([$table, $column]);
-    if (strtolower((string)$longTextTypes->fetchColumn()) !== 'mediumtext') {
-        throw new RuntimeException("Expected {$table}.{$column} to use MEDIUMTEXT on MySQL");
-    }
-}
+
 
 // Simulate a MyPress 1.0 database with legacy TEXT content and 32-bit money columns.
 $pdo->exec("CREATE TABLE posts (
@@ -63,6 +54,17 @@ $pdo->exec("CREATE TABLE order_items (
 
 // The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
+
+$longTextTypes = $pdo->prepare(
+    'SELECT data_type FROM information_schema.columns
+     WHERE table_schema=DATABASE() AND table_name=? AND column_name=?'
+);
+foreach ([['posts', 'content'], ['products', 'description']] as [$table, $column]) {
+    $longTextTypes->execute([$table, $column]);
+    if (strtolower((string)$longTextTypes->fetchColumn()) !== 'mediumtext') {
+        throw new RuntimeException("Expected {$table}.{$column} to use MEDIUMTEXT on MySQL");
+    }
+}
 
 // The per-IP throttle query has no username_key predicate, so its leading
 // index must exist on MySQL as well as SQLite.
