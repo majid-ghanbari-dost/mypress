@@ -361,6 +361,8 @@ try {
     e2e_check(str_contains($jsonBackup['body'], 'HTTP E2E Product') && !str_contains($jsonBackup['body'], 'password_hash'), 'JSON backup contains business data but omits password hashes');
     $sqliteBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=sqlite');
     e2e_check($sqliteBackup['status'] === 200 && str_starts_with($sqliteBackup['body'], 'SQLite format 3'), 'Administrator can download a valid SQLite database backup');
+    $temporaryBackups = glob($docRoot . '/data/.mypress-backup-*.sqlite') ?: [];
+    e2e_check(count($temporaryBackups) === 0, 'Temporary SQLite snapshot is removed after the download');
 
     $restoredPath = $tempRoot . '/restored.sqlite';
     e2e_check(file_put_contents($restoredPath, $sqliteBackup['body']) === strlen($sqliteBackup['body']), 'SQLite backup bytes can be written as a restore candidate');
