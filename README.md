@@ -2,7 +2,7 @@
 
 MyPress is a self-hosted PHP CMS for small business, portfolio and content websites. It includes a Persian RTL administration experience, posts/pages, media, users and roles, menus, comments, basic SEO and an optional simple COD shop.
 
-**Project status:** 2.0.0 hardening candidate. Do not treat this release as a fully audited WordPress replacement or a payment-ready commerce platform until the deployment and acceptance checklist below is complete.
+**Project status:** 2.0.0 hardening release. Automated PHP and MySQL checks pass; this is not a penetration-tested or deployment-certified WordPress replacement or payment-ready commerce platform.
 
 ## Requirements
 
