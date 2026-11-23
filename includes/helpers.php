@@ -204,10 +204,9 @@ function mp_upload_image(array $file): ?string {
     if (($image[0] ?? 0) < 1 || ($image[1] ?? 0) < 1 ||
         $image[0] > 8000 || $image[1] > 8000) return null;
 
-    if (class_exists('finfo')) {
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        if ($finfo->file($tmp) !== $mime) return null;
-    }
+    if (!class_exists('finfo')) return null;
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    if ($finfo->file($tmp) !== $mime) return null;
 
     $directory = dirname(__DIR__) . '/uploads';
     if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) return null;
