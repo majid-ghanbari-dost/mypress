@@ -22,6 +22,13 @@ $checks = 0;
 $apacheRules = (string)file_get_contents($sourceRoot . '/.htaccess');
 $uploadRules = (string)file_get_contents($sourceRoot . '/uploads/.htaccess');
 $nginxRules = (string)file_get_contents($sourceRoot . '/docs/nginx.conf.example');
+$backupSource = (string)file_get_contents($sourceRoot . '/admin/backup.php');
+e2e_check(
+    str_contains($backupSource, 'PDO::MYSQL_ATTR_USE_BUFFERED_QUERY') &&
+    str_contains($backupSource, 'setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false)') &&
+    str_contains($backupSource, 'setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true)'),
+    'JSON backup explicitly disables and restores PDO MySQL result buffering'
+);
 e2e_check(str_contains($apacheRules, 'config\\.php(?:\\..*)?'), 'Apache denies config.php and temporary sibling files');
 e2e_check(str_contains($nginxRules, 'config\\.php(?:\\..*)?'), 'Nginx denies config.php and temporary sibling files');
 e2e_check(!str_contains($uploadRules, 'php_flag') && str_contains($uploadRules, 'Require all denied'), 'Uploads protection is PHP-FPM compatible and denies script extensions');

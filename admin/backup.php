@@ -30,11 +30,20 @@ if (isset($_GET['download']) && $_GET['download'] === 'json') {
         if (is_file($backupPath)) @unlink($backupPath);
     });
 
+    $mysqlUnbuffered = false;
+    $statement = null;
     try {
         // Keep all table reads in one database snapshot. MySQL's default
         // REPEATABLE READ gives the export a consistent view across tables.
+        // PDO_MYSQL buffers complete result sets by default; disable that for
+        // this export so fetching one row at a time is genuinely memory-bounded.
         if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
             $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+            if (!defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY') ||
+                !$pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false)) {
+                throw new RuntimeException('Unable to enable unbuffered MySQL backup queries.');
+            }
+            $mysqlUnbuffered = true;
         }
         $pdo->beginTransaction();
 
@@ -63,10 +72,20 @@ if (isset($_GET['download']) && $_GET['download'] === 'json') {
                 $write(($firstRow ? "\n    " : ",\n    ") . $encoded);
                 $firstRow = false;
             }
+            // Required before issuing the next statement on an unbuffered
+            // PDO_MYSQL connection.
+            $statement->closeCursor();
+            $statement = null;
             if (!$firstRow) $write("\n  ");
             $write(']');
         }
         $write("\n}\n");
+        if ($mysqlUnbuffered) {
+            if (!$pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true)) {
+                throw new RuntimeException('Unable to restore buffered MySQL query mode.');
+            }
+            $mysqlUnbuffered = false;
+        }
         $pdo->commit();
 
         if (!fclose($handle)) throw new RuntimeException('Unable to close JSON backup file.');
@@ -74,6 +93,12 @@ if (isset($_GET['download']) && $_GET['download'] === 'json') {
         $size = filesize($backupPath);
         if ($size === false) throw new RuntimeException('Unable to read JSON backup size.');
     } catch (Throwable $exception) {
+        if ($statement instanceof PDOStatement) {
+            try { $statement->closeCursor(); } catch (Throwable $ignored) {}
+        }
+        if ($mysqlUnbuffered) {
+            try { $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true); } catch (Throwable $ignored) {}
+        }
         if ($pdo->inTransaction()) $pdo->rollBack();
         if (is_resource($handle)) fclose($handle);
         @unlink($backupPath);

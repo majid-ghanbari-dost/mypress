@@ -49,7 +49,7 @@ The single-transaction option is intended for transactional InnoDB tables. If an
 
 ## JSON export limitations
 
-The administrator-only JSON download is useful for inspection or custom migration scripts. It omits password hashes by design and is **not** a full restore package. There is no supported JSON import/restore workflow in the current release.
+The administrator-only JSON download is useful for inspection or custom migration scripts. It omits password hashes by design and is **not** a full restore package. There is no supported JSON import/restore workflow in the current release. The export writes one row at a time to a private temporary file. On MySQL, it also disables PDO_MYSQL's default buffered-result mode for the duration of the export and closes each table cursor before reading the next table, avoiding a full result-set copy in PHP memory.
 
 ## Recovery checklist
 
