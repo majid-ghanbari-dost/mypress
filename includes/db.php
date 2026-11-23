@@ -12,21 +12,62 @@ function mp_config(): array {
     return $config;
 }
 
-function mp_index_exists(PDO $pdo, string $indexName): bool {
+function mp_table_exists(PDO $pdo, string $tableName): bool {
+    if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
+        throw new InvalidArgumentException('Invalid table name.');
+    }
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema=DATABASE() AND table_name=?'
+        );
+        $statement->execute([$tableName]);
+        return (int)$statement->fetchColumn() > 0;
+    }
+    $statement = $pdo->prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?");
+    $statement->execute([$tableName]);
+    return (int)$statement->fetchColumn() > 0;
+}
+
+function mp_index_exists(PDO $pdo, string $tableName, string $indexName): bool {
+    if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName) ||
+        !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $indexName)) {
+        throw new InvalidArgumentException('Invalid index identifier.');
+    }
     if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
         $statement = $pdo->prepare(
             'SELECT COUNT(*) FROM information_schema.statistics
              WHERE table_schema=DATABASE() AND table_name=? AND index_name=?'
         );
-        $statement->execute(['login_attempts', $indexName]);
+        $statement->execute([$tableName, $indexName]);
         return (int)$statement->fetchColumn() > 0;
     }
 
-    $indexes = $pdo->query('PRAGMA index_list(login_attempts)')->fetchAll(PDO::FETCH_ASSOC);
+    $indexes = $pdo->query('PRAGMA index_list("' . $tableName . '")')->fetchAll(PDO::FETCH_ASSOC);
     foreach ($indexes as $index) {
         if (($index['name'] ?? '') === $indexName) return true;
     }
     return false;
+}
+
+function mp_ensure_index(PDO $pdo, string $tableName, string $indexName, string $columns): void {
+    $columnNames = array_map('trim', explode(',', $columns));
+    if (!$columnNames || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName) ||
+        !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $indexName)) {
+        throw new InvalidArgumentException('Invalid index definition.');
+    }
+    foreach ($columnNames as $columnName) {
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $columnName)) {
+            throw new InvalidArgumentException('Invalid index column.');
+        }
+    }
+    if (mp_index_exists($pdo, $tableName, $indexName)) return;
+    try {
+        $pdo->exec("CREATE INDEX {$indexName} ON {$tableName} (" . implode(', ', $columnNames) . ')');
+    } catch (PDOException $exception) {
+        // Another request may have created the index after the existence check.
+        if (!mp_index_exists($pdo, $tableName, $indexName)) throw $exception;
+    }
 }
 
 function mp_ensure_security_schema(PDO $pdo): void {
@@ -45,18 +86,27 @@ function mp_ensure_security_schema(PDO $pdo): void {
         'idx_login_attempts_ip_lookup' => 'ip_key, attempted_at',
     ];
     foreach ($indexes as $indexName => $columns) {
-        if (mp_index_exists($pdo, $indexName)) continue;
-        try {
-            $pdo->exec("CREATE INDEX {$indexName} ON login_attempts ({$columns})");
-        } catch (PDOException $exception) {
-            // Another concurrent request may have created the same index.
-            if (!mp_index_exists($pdo, $indexName)) throw $exception;
-        }
+        mp_ensure_index($pdo, 'login_attempts', $indexName, $columns);
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(64) PRIMARY KEY,
         applied_at DATETIME NOT NULL
     )");
+
+    // Order administration loads line items by order_id. Add this index to
+    // existing installations once, not just to newly created databases.
+    if (mp_table_exists($pdo, 'order_items')) {
+        $migrationVersion = 'order-items-order-index-v1';
+        $check = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+        $check->execute([$migrationVersion]);
+        if (!$check->fetchColumn()) {
+            mp_ensure_index($pdo, 'order_items', 'idx_order_items_order_id', 'order_id');
+            $insertSql = $mysql
+                ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+                : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+            $pdo->prepare($insertSql)->execute([$migrationVersion, date('Y-m-d H:i:s')]);
+        }
+    }
 
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
