@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../modules/shop/shop.php';
 
 $host = getenv('MYSQL_TEST_HOST') ?: '127.0.0.1';
@@ -46,6 +47,18 @@ $pdo->beginTransaction();
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
 $adminId = (int)$pdo->lastInsertId();
+if (mp_delete_user($pdo, $adminId, $adminId)) {
+    throw new RuntimeException('Administrator self-deletion unexpectedly succeeded');
+}
+$pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
+    ->execute(['mysql-second-admin', password_hash('another-long-password', PASSWORD_DEFAULT), 'second-mysql@example.test', 'Second MySQL Admin']);
+$secondAdminId = (int)$pdo->lastInsertId();
+if (!mp_delete_user($pdo, $secondAdminId, $adminId)) {
+    throw new RuntimeException('Transactional deletion of one of multiple administrators failed');
+}
+if (mp_delete_user($pdo, $adminId, 999)) {
+    throw new RuntimeException('Deletion of the final administrator unexpectedly succeeded');
+}
 mp_seed($pdo, $adminId);
 $pdo->prepare('INSERT INTO options (opt_key,opt_value) VALUES (?,?)')->execute(['site_title','MySQL Test']);
 $pdo->commit();
