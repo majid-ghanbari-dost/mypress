@@ -108,7 +108,7 @@ function mp_ensure_security_schema(PDO $pdo): void {
 
     // Cover the stable sort/filter patterns used by high-volume admin screens
     // and the public product listing. This migration runs once per installation.
-    $adminIndexMigration = 'admin-list-indexes-v1';
+    $adminIndexMigration = 'admin-list-indexes-v2';
     $adminIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
     $adminIndexCheck->execute([$adminIndexMigration]);
     if (!$adminIndexCheck->fetchColumn() && mp_table_exists($pdo, 'posts')) {
