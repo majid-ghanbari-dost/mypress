@@ -43,6 +43,7 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 mp_create_tables($pdo);
 $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
 check(in_array('login_attempts', $tables, true), 'Login throttling schema exists');
+check(in_array('schema_migrations', $tables, true), 'Schema migration ledger exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
 

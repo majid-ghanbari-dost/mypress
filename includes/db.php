@@ -26,8 +26,32 @@ function mp_ensure_security_schema(PDO $pdo): void {
     } catch (PDOException $exception) {
         // Index already exists on an initialized installation.
     }
-}
+    $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
+        version VARCHAR(64) PRIMARY KEY,
+        applied_at DATETIME NOT NULL
+    )");
 
+    // Existing MySQL installations used 32-bit INTEGER for money fields.
+    // Upgrade them once so large order totals cannot overflow on MySQL.
+    if ($mysql) {
+        $tablesReady = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema=DATABASE() AND table_name IN ('products','orders','order_items')"
+        )->fetchColumn();
+        if ($tablesReady === 3) {
+            $check = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+            $check->execute(['money-columns-bigint-v1']);
+            if (!$check->fetchColumn()) {
+                $pdo->exec('ALTER TABLE products MODIFY price BIGINT NOT NULL DEFAULT 0');
+                $pdo->exec('ALTER TABLE orders MODIFY total BIGINT NOT NULL DEFAULT 0, MODIFY discount_amount BIGINT NOT NULL DEFAULT 0');
+                $pdo->exec('ALTER TABLE order_items MODIFY price BIGINT NOT NULL DEFAULT 0');
+                $pdo->prepare('INSERT INTO schema_migrations (version,applied_at) VALUES (?,?)')
+                    ->execute(['money-columns-bigint-v1', date('Y-m-d H:i:s')]);
+            }
+        }
+    }
+}
+ 
 function mp_pdo(): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
@@ -70,6 +94,7 @@ function mp_create_tables(PDO $pdo): void {
     $text = 'TEXT';
     // MySQL versions before 8.0.13 reject defaults on TEXT/BLOB columns.
     $textDefault = $isMysql ? 'TEXT NOT NULL' : "TEXT NOT NULL DEFAULT ''";
+    $money = $isMysql ? 'BIGINT' : 'INTEGER';
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id $auto, username VARCHAR(60) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL,
         email VARCHAR(150) NOT NULL, display_name VARCHAR(120) NOT NULL,
@@ -98,25 +123,25 @@ function mp_create_tables(PDO $pdo): void {
         position INTEGER NOT NULL DEFAULT 0, parent_id INTEGER NOT NULL DEFAULT 0)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS products (
         id $auto, name VARCHAR(255) NOT NULL, slug VARCHAR(255) NOT NULL UNIQUE,
-        description $text NOT NULL DEFAULT '', price INTEGER NOT NULL DEFAULT 0,
+        description $textDefault, price $money NOT NULL DEFAULT 0,
         stock INTEGER NOT NULL DEFAULT 0, image VARCHAR(255) DEFAULT '',
         category_id INTEGER DEFAULT NULL, status VARCHAR(20) NOT NULL DEFAULT 'published',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
         id $auto, customer_name VARCHAR(150) NOT NULL, customer_phone VARCHAR(50) NOT NULL,
-        customer_address $text NOT NULL, total INTEGER NOT NULL DEFAULT 0,
-        discount_code VARCHAR(50) DEFAULT '', discount_amount INTEGER NOT NULL DEFAULT 0,
+        customer_address $text NOT NULL, total $money NOT NULL DEFAULT 0,
+        discount_code VARCHAR(50) DEFAULT '', discount_amount $money NOT NULL DEFAULT 0,
         status VARCHAR(30) NOT NULL DEFAULT 'new',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS order_items (
         id $auto, order_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-        product_name VARCHAR(255) NOT NULL, price INTEGER NOT NULL DEFAULT 0,
+        product_name VARCHAR(255) NOT NULL, price $money NOT NULL DEFAULT 0,
         qty INTEGER NOT NULL DEFAULT 1)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS coupons (
         id $auto, code VARCHAR(50) NOT NULL UNIQUE, percent INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1, expires_at DATE DEFAULT NULL)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS options (
-        opt_key VARCHAR(100) PRIMARY KEY, opt_value $text NOT NULL DEFAULT '')");
+        opt_key VARCHAR(100) PRIMARY KEY, opt_value $textDefault)");
     mp_ensure_security_schema($pdo);
 }
 
