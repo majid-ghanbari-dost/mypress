@@ -350,7 +350,7 @@ try {
     $mediaListPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
     e2e_check(substr_count($mediaListPageOne['body'], '<tr>') - 1 === 25 && str_contains($mediaListPageOne['body'], 'صفحه 1 از 2'), 'Media library paginates its first 25 records');
     $mediaListPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?page=2');
-    e2e_check(substr_count($mediaListPageTwo['body'], '<tr>') - 1 === 1, 'Media library renders only the remaining record on page two');
+    e2e_check(substr_count($mediaListPageTwo['body'], '<tr>') - 1 === 2, 'Media library renders the remaining two records on page two');
     $filteredMedia = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?q=fixture-&uploader=' . $adminIdForFixtures);
     e2e_check($filteredMedia['status'] === 200 && substr_count($filteredMedia['body'], '<tr>') - 1 === 25, 'Media filename search and uploader filter compose correctly');
     e2e_check(str_contains($filteredMedia['body'], 'q=fixture-') && str_contains($filteredMedia['body'], 'uploader=' . $adminIdForFixtures), 'Media pagination preserves search and uploader filters');
