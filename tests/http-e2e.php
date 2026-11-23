@@ -22,8 +22,8 @@ $checks = 0;
 $apacheRules = (string)file_get_contents($sourceRoot . '/.htaccess');
 $uploadRules = (string)file_get_contents($sourceRoot . '/uploads/.htaccess');
 $nginxRules = (string)file_get_contents($sourceRoot . '/docs/nginx.conf.example');
-e2e_check(str_contains($apacheRules, 'config\\\.php(?:\\\..*)?'), 'Apache denies config.php and temporary sibling files');
-e2e_check(str_contains($nginxRules, 'config\\\.php(?:\\\..*)?'), 'Nginx denies config.php and temporary sibling files');
+e2e_check(str_contains($apacheRules, 'config\\.php(?:\\..*)?'), 'Apache denies config.php and temporary sibling files');
+e2e_check(str_contains($nginxRules, 'config\\.php(?:\\..*)?'), 'Nginx denies config.php and temporary sibling files');
 e2e_check(!str_contains($uploadRules, 'php_flag') && str_contains($uploadRules, 'Require all denied'), 'Uploads protection is PHP-FPM compatible and denies script extensions');
 
 function e2e_check(bool $condition, string $message): void {
