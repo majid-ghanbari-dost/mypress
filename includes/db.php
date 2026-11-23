@@ -117,7 +117,7 @@ function mp_ensure_security_schema(PDO $pdo): void {
 
     // Cover the stable sort/filter patterns used by high-volume admin screens
     // and the public product listing. This migration runs once per installation.
-    $adminIndexMigration = 'admin-list-indexes-v4';
+    $adminIndexMigration = 'admin-list-indexes-v5';
     $adminIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
     $adminIndexCheck->execute([$adminIndexMigration]);
     if (!$adminIndexCheck->fetchColumn() && mp_table_exists($pdo, 'posts')) {
@@ -125,6 +125,9 @@ function mp_ensure_security_schema(PDO $pdo): void {
             'posts' => [
                 'idx_posts_type_created_id' => 'type, created_at, id',
                 'idx_posts_author_type_created_id' => 'author_id, type, created_at, id',
+                'idx_posts_type_status_created_id' => 'type, status, created_at, id',
+                'idx_posts_author_type_status_created_id' => 'author_id, type, status, created_at, id',
+                'idx_posts_title_created_id' => 'title(191), created_at, id',
             ],
             'comments' => [
                 'idx_comments_created_id' => 'created_at, id',
