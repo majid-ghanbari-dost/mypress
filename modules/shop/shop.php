@@ -195,13 +195,19 @@ function mp_update_order_status(int $orderId, string $requested, ?PDO $connectio
         $order = $find->fetch();
         if (!$order) throw new RuntimeException('Order not found');
 
-        if ($order['status'] === 'cancelled') {
-            if ($requested !== 'cancelled') throw new RuntimeException('Cancelled order is terminal');
+        $transitions = [
+            'new' => ['new', 'processing', 'cancelled'],
+            'processing' => ['processing', 'shipped', 'cancelled'],
+            'shipped' => ['shipped'],
+            'cancelled' => ['cancelled'],
+        ];
+        $currentStatus = (string)$order['status'];
+        if (!in_array($requested, $transitions[$currentStatus] ?? [], true)) {
+            throw new RuntimeException('Invalid order state transition');
+        }
+        if ($currentStatus === 'cancelled') {
             $pdo->commit();
             return true;
-        }
-        if ($order['status'] === 'shipped' && $requested === 'cancelled') {
-            throw new RuntimeException('Shipped order cannot be auto-cancelled');
         }
         if ($requested === 'cancelled') {
             $items = $pdo->prepare('SELECT product_id,qty FROM order_items WHERE order_id=?');

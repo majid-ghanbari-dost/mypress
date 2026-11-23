@@ -27,7 +27,7 @@ mp_admin_header(t('orders'), $user);
 <p>جمع: <b><?= mp_price((int)$order['total']) ?></b><?php if (!empty($order['discount_code'])) echo ' — تخفیف ' . e($order['discount_code']) . ': ' . mp_price((int)$order['discount_amount']); ?> — وضعیت: <b><?= e(mp_order_status_label($order['status'])) ?></b></p>
 <form method="post"><?= mp_csrf_field() ?><input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
 <select name="status" style="width:auto;display:inline-block">
-<?php foreach (['new'=>'جدید','processing'=>'در حال پردازش','shipped'=>'ارسال‌شده','cancelled'=>'لغو شده'] as $key=>$label): ?><option value="<?= $key ?>" <?= $order['status']===$key?'selected':'' ?> <?= ($order['status']==='cancelled' && $key!=='cancelled') || ($order['status']==='shipped' && $key==='cancelled')?'disabled':'' ?>><?= $label ?></option><?php endforeach; ?>
+<?php foreach (['new'=>'جدید','processing'=>'در حال پردازش','shipped'=>'ارسال‌شده','cancelled'=>'لغو شده'] as $key=>$label): ?><option value="<?= $key ?>" <?= $order['status']===$key?'selected':'' ?> <?= (($order['status']==='new' && $key==='shipped') || ($order['status']==='processing' && $key==='new') || ($order['status']==='shipped' && $key!=='shipped') || ($order['status']==='cancelled' && $key!=='cancelled'))?'disabled':'' ?>><?= $label ?></option><?php endforeach; ?>
 </select> <button class="btn btn-small" type="submit">به‌روزرسانی</button></form>
 </div>
 <?php endforeach; ?>
