@@ -46,9 +46,11 @@ check(in_array('login_attempts', $tables, true), 'Login throttling schema exists
 $indexes = $pdo->query("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 check(in_array('idx_login_attempts_lookup', $indexes, true), 'Username/IP throttle index exists');
 check(in_array('idx_login_attempts_ip_lookup', $indexes, true), 'Per-IP throttle index exists');
+check(in_array('idx_login_attempts_attempted_at', $indexes, true), 'Login attempt retention index exists');
+check(in_array('idx_comments_post_status_created_id', $indexes, true), 'Public comment lookup index exists');
 mp_ensure_security_schema($pdo);
-$indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')")->fetchColumn();
-check($indexCount === 2, 'Security schema setup is idempotent and does not duplicate throttle indexes');
+$indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup','idx_login_attempts_attempted_at')")->fetchColumn();
+check($indexCount === 3, 'Security schema setup is idempotent and does not duplicate throttle indexes');
 check(in_array('schema_migrations', $tables, true), 'Schema migration ledger exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
@@ -63,7 +65,7 @@ $adminIndexNames = [
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
     'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
     'idx_users_username_created_id','idx_users_display_name_created_id','idx_users_email_created_id','idx_users_role_created_id',
-    'idx_comments_status_created_id','idx_comments_author_created_id','idx_comments_email_created_id',
+    'idx_comments_status_created_id','idx_comments_author_created_id','idx_comments_email_created_id','idx_comments_post_status_created_id',
     'idx_media_filename_created_id','idx_media_original_name_created_id',
 ];
 $adminIndexCount = (int)$pdo->query(
