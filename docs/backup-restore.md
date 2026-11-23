@@ -34,7 +34,7 @@ If the configured `db_path` differs from the default, restore to the exact path 
 
 ## MySQL / MariaDB backup and restore
 
-MyPress does not currently implement a MySQL dump/download endpoint. Use the hosting provider's database backup facility or trusted command-line database tools.
+MyPress does not currently implement a MySQL dump/download endpoint. Use the hosting provider's database backup facility or trusted command-line database tools. CI rehearses a `mysqldump` and import into a new empty MySQL 8 database, but the actual hosting provider's backup tooling and permissions still need a staging rehearsal.
 
 Example backup (replace placeholders and store the output outside the document root):
 
