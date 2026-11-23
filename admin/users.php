@@ -8,8 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mp_csrf_check();
     if (isset($_POST['delete_id'])) {
         $targetId = (int)$_POST['delete_id'];
-        if (mp_can_delete_user($pdo, $targetId, (int)$user['id'])) {
-            $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$targetId]);
+        if (mp_delete_user($pdo, $targetId, (int)$user['id'])) {
             mp_flash('کاربر حذف شد.');
         } else {
             mp_flash('حذف حساب خودتان یا آخرین مدیر سایت مجاز نیست.', 'err');

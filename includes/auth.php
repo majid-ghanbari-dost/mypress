@@ -90,19 +90,37 @@ function mp_can_edit_post(array $user, array $post): bool {
     );
 }
 
-function mp_can_delete_user(PDO $pdo, int $targetId, int $actorId): bool {
+function mp_delete_user(PDO $pdo, int $targetId, int $actorId): bool {
     if ($targetId < 1 || $targetId === $actorId) return false;
-    $statement = $pdo->prepare('SELECT role FROM users WHERE id=?');
-    $statement->execute([$targetId]);
-    $targetRole = $statement->fetchColumn();
-    if ($targetRole === false) return false;
-    if ($targetRole === 'admin') {
-        $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
-        if ($adminCount <= 1) return false;
-    }
-    return true;
-}
+    try {
+        $pdo->beginTransaction();
+        $adminSql = "SELECT id FROM users WHERE role='admin'";
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $adminSql .= ' FOR UPDATE';
+        $adminIds = $pdo->query($adminSql)->fetchAll(PDO::FETCH_COLUMN);
 
+        $targetSql = 'SELECT role FROM users WHERE id=?';
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $targetSql .= ' FOR UPDATE';
+        $target = $pdo->prepare($targetSql);
+        $target->execute([$targetId]);
+        $targetRole = $target->fetchColumn();
+        if ($targetRole === false || ($targetRole === 'admin' && count($adminIds) <= 1)) {
+            $pdo->rollBack();
+            return false;
+        }
+
+        $delete = $pdo->prepare('DELETE FROM users WHERE id=?');
+        $delete->execute([$targetId]);
+        if ($delete->rowCount() !== 1) {
+            $pdo->rollBack();
+            return false;
+        }
+        $pdo->commit();
+        return true;
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        return false;
+    }
+}
 function mp_require_role(string $role): array {
     $user = mp_require_login();
     if (!mp_can($user, $role)) {
