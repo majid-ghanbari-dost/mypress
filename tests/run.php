@@ -46,6 +46,9 @@ check(in_array('login_attempts', $tables, true), 'Login throttling schema exists
 $indexes = $pdo->query("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 check(in_array('idx_login_attempts_lookup', $indexes, true), 'Username/IP throttle index exists');
 check(in_array('idx_login_attempts_ip_lookup', $indexes, true), 'Per-IP throttle index exists');
+mp_ensure_security_schema($pdo);
+$indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')")->fetchColumn();
+check($indexCount === 2, 'Security schema setup is idempotent and does not duplicate throttle indexes');
 check(in_array('schema_migrations', $tables, true), 'Schema migration ledger exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
