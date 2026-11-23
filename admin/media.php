@@ -41,14 +41,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     mp_redirect('media.php');
 }
 
-if (mp_can($user, 'editor')) {
-    $rows = $pdo->query('SELECT * FROM media ORDER BY created_at DESC')->fetchAll();
+$perPage = 25;
+$isEditor = mp_can($user, 'editor');
+if ($isEditor) {
+    $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM media')->fetchColumn();
 } else {
-    $statement = $pdo->prepare('SELECT * FROM media WHERE uploaded_by=? ORDER BY created_at DESC');
-    $statement->execute([(int)$user['id']]);
-    $rows = $statement->fetchAll();
+    $count = $pdo->prepare('SELECT COUNT(*) FROM media WHERE uploaded_by=?');
+    $count->execute([(int)$user['id']]);
+    $totalRows = (int)$count->fetchColumn();
 }
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = min(mp_admin_page_number(), $totalPages);
+$offset = ($page - 1) * $perPage;
+if ($isEditor) {
+    $statement = $pdo->prepare('SELECT * FROM media ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+} else {
+    $statement = $pdo->prepare('SELECT * FROM media WHERE uploaded_by=? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+    $statement->bindValue(1, (int)$user['id'], PDO::PARAM_INT);
+    $statement->bindValue(2, $perPage, PDO::PARAM_INT);
+    $statement->bindValue(3, $offset, PDO::PARAM_INT);
+}
+if ($isEditor) {
+    $statement->bindValue(1, $perPage, PDO::PARAM_INT);
+    $statement->bindValue(2, $offset, PDO::PARAM_INT);
+}
+$statement->execute();
+$rows = $statement->fetchAll();
 mp_admin_header(t('media'), $user);
+mp_admin_pagination($page, $totalPages, 'media.php');
 ?>
 <form method="post" enctype="multipart/form-data"><?= mp_csrf_field() ?>
 <label>انتخاب تصویر <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required></label>
@@ -59,5 +79,6 @@ mp_admin_header(t('media'), $user);
 <td dir="ltr"><?= e($media['filename']) ?><br><small><?= e($media['original_name']) ?></small></td>
 <td><?= number_format((int)$media['size']) ?> بایت</td><td><?= e($media['created_at']) ?></td>
 <td><form method="post" style="display:inline" data-confirm="حذف شود؟"><?= mp_csrf_field() ?><input type="hidden" name="delete_id" value="<?= (int)$media['id'] ?>"><button class="btn btn-danger btn-small" type="submit">حذف</button></form></td></tr><?php endforeach; ?></table>
+<?php mp_admin_pagination($page, $totalPages, 'media.php'); ?>
 <script src="../assets/js/admin.js"></script>
 <?php mp_admin_footer(); ?>
