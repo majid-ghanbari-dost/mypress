@@ -561,6 +561,7 @@ try {
     // Backups must be downloadable and must not disclose password hashes.
     $jsonBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=json');
     e2e_check($jsonBackup['status'] === 200 && str_contains($jsonBackup['headers'], 'application/json'), 'Administrator can download JSON backup');
+    e2e_check(str_contains($jsonBackup['headers'], 'Cache-Control: no-store') && str_contains($jsonBackup['headers'], 'Pragma: no-cache'), 'Sensitive JSON backup responses are not cacheable');
     e2e_check(str_contains($jsonBackup['body'], 'HTTP E2E Product') && !str_contains($jsonBackup['body'], 'password_hash'), 'JSON backup contains business data but omits password hashes');
     $decodedJsonBackup = json_decode($jsonBackup['body'], true, 512, JSON_THROW_ON_ERROR);
     e2e_check(is_array($decodedJsonBackup) && isset($decodedJsonBackup['users'], $decodedJsonBackup['orders']), 'JSON backup is valid structured JSON with expected tables');
@@ -568,6 +569,7 @@ try {
     e2e_check(count($temporaryJsonBackups) === 0, 'Temporary JSON export file is removed after the download');
     $sqliteBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=sqlite');
     e2e_check($sqliteBackup['status'] === 200 && str_starts_with($sqliteBackup['body'], 'SQLite format 3'), 'Administrator can download a valid SQLite database backup');
+    e2e_check(str_contains($sqliteBackup['headers'], 'Cache-Control: no-store') && str_contains($sqliteBackup['headers'], 'Pragma: no-cache'), 'Sensitive SQLite backup responses are not cacheable');
     $temporaryBackups = glob($docRoot . '/data/.mypress-backup-*.sqlite') ?: [];
     e2e_check(count($temporaryBackups) === 0, 'Temporary SQLite snapshot is removed after the download');
 
