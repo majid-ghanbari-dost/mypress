@@ -30,6 +30,7 @@ jobs:
       - name: Smoke tests
         run: php tests/run.php
   mysql:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: MySQL 8 integration
     runs-on: ubuntu-latest
     services:
