@@ -48,10 +48,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mp_redirect('shop-products.php');
 }
 
-$rows = $pdo->query('SELECT p.*,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY p.created_at DESC')->fetchAll();
+$perPage = 25;
+$totalRows = (int)$pdo->query('SELECT COUNT(*) FROM products')->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = min(mp_admin_page_number(), $totalPages);
+$offset = ($page - 1) * $perPage;
+$productQuery = $pdo->prepare('SELECT p.*,c.name AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?');
+$productQuery->bindValue(1, $perPage, PDO::PARAM_INT);
+$productQuery->bindValue(2, $offset, PDO::PARAM_INT);
+$productQuery->execute();
+$rows = $productQuery->fetchAll();
 $categories = $pdo->query("SELECT * FROM categories WHERE type='product' ORDER BY name")->fetchAll();
 $coupons = $pdo->query('SELECT * FROM coupons ORDER BY code')->fetchAll();
 mp_admin_header(t('products'), $user);
+mp_admin_pagination($page, $totalPages, 'shop-products.php');
 ?>
 <form method="post" enctype="multipart/form-data"><?= mp_csrf_field() ?>
 <label>نام محصول <input name="name" required maxlength="255"></label>
@@ -65,6 +75,7 @@ mp_admin_header(t('products'), $user);
 <?php foreach ($rows as $row): ?><tr><td><?= e($row['name']) ?></td><td><?= mp_price((int)$row['price']) ?></td><td><?= (int)$row['stock'] ?></td><td><?= e($row['cat_name'] ?? '') ?></td><td><?= $row['status']==='published'?'فعال':'بایگانی' ?></td>
 <td><?php if ($row['status']==='published'): ?><a href="../index.php?product=<?= rawurlencode((string)$row['slug']) ?>" target="_blank" rel="noopener">مشاهده</a>
 <form method="post" style="display:inline" data-confirm="محصول از فروشگاه خارج شود؟"><?= mp_csrf_field() ?><input type="hidden" name="delete_id" value="<?= (int)$row['id'] ?>"><button class="btn btn-danger btn-small" type="submit">بایگانی</button></form><?php endif; ?></td></tr><?php endforeach; ?></table>
+<?php mp_admin_pagination($page, $totalPages, 'shop-products.php'); ?>
 <h2>کدهای تخفیف</h2>
 <form method="post"><?= mp_csrf_field() ?>
 <label>کد <input name="coupon_code" dir="ltr" required></label>
