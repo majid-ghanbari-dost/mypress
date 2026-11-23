@@ -36,6 +36,10 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 
 The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. The first MySQL schema initialization upgrades legacy MyISAM commerce tables to InnoDB and 64-bit money columns; the database account needs ALTER permission for this one-time migration. Never commit config.php, database files, backups, or uploaded customer data.
 
+## Backup and restore
+
+See [docs/backup-restore.md](docs/backup-restore.md) for SQLite restore, MySQL dump/import, JSON export limitations and the recovery checklist. The procedure must still be rehearsed against the actual hosting provider before production use.
+
 ## Web server hardening
 
 The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. Keep config.php, data/, backups, logs and private runtime files outside the public document root whenever possible.
@@ -54,6 +58,6 @@ GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integr
 - MySQL/MariaDB compatibility must be verified against the exact host/version and its SQL mode.
 - The shop currently supports manual/COD order handling only; it is not an online payment integration.
 - No visual page builder, mature third-party plugin marketplace, full multilingual content model, REST API, automated update service or revision history is included.
-- Backup/restore and migration procedures still require a documented operational test before production use.
+- Backup/restore is operator-run; a recovery rehearsal on the actual target host is still required before production use.
 
 MyPress is intentionally a focused lightweight CMS. Feature parity with WordPress is not a goal of this hardening release.
