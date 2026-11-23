@@ -531,9 +531,9 @@ try {
     $publicCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article&comment_page=2');
     e2e_check(substr_count($publicCommentsPageTwo['body'], '<div class="comment">') === 1 &&
         str_contains($publicCommentsPageTwo['body'], 'صفحه 2 از 2'), 'Public comment pagination renders only the remaining comment');
-    $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php');
-    e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Comment moderation paginates its first 25 records');
-    $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?page=2');
+    $commentsPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=pending');
+    e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Pending comment moderation paginates its first 25 records');
+    $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=pending&page=2');
     e2e_check(substr_count($commentsPageTwo['body'], '<tr>') - 1 === 1, 'Comment moderation renders only the remaining record on page two');
     $filteredComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending');
     e2e_check($filteredComments['status'] === 200 && substr_count($filteredComments['body'], '<tr>') - 1 === 25, 'Comment author prefix search and pending status filter compose correctly');
