@@ -385,7 +385,6 @@ try {
 } catch (Throwable $exception) {
     fwrite(STDERR, $exception->getMessage() . "\n");
     if (is_file($serverLog)) fwrite(STDERR, (string)file_get_contents($serverLog));
-    exitCode:
     $exitCode = 1;
 } finally {
     if (is_resource($server)) {
