@@ -31,6 +31,8 @@ e2e_check(
 );
 e2e_check(str_contains($apacheRules, 'config\\.php(?:\\..*)?'), 'Apache denies config.php and temporary sibling files');
 e2e_check(str_contains($nginxRules, 'config\\.php(?:\\..*)?'), 'Nginx denies config.php and temporary sibling files');
+e2e_check(str_contains($apacheRules, 'X-Content-Type-Options') && str_contains($apacheRules, 'Content-Security-Policy'), 'Apache config includes baseline security headers');
+e2e_check(str_contains($nginxRules, 'X-Content-Type-Options') && str_contains($nginxRules, 'Content-Security-Policy'), 'Nginx config includes baseline security headers');
 e2e_check(!str_contains($uploadRules, 'php_flag') && str_contains($uploadRules, 'Require all denied'), 'Uploads protection is PHP-FPM compatible and denies script extensions');
 
 function e2e_check(bool $condition, string $message): void {
@@ -211,6 +213,8 @@ try {
     // Fresh install and one-time installer lock.
     $install = e2e_request($baseUrl, $cookieAdmin, 'GET', 'install.php');
     e2e_check($install['status'] === 200 && str_contains($install['body'], 'نصب MyPress'), 'Installer page is served over HTTP');
+    e2e_check(str_contains($install['headers'], 'X-Content-Type-Options: nosniff') &&
+        str_contains($install['headers'], 'Content-Security-Policy:'), 'Installer sends baseline security headers');
     $installToken = e2e_csrf($install);
 
     // Simulate another PHP worker holding the installer mutex. A second
@@ -252,6 +256,9 @@ try {
     // Public front page and seeded content.
     $home = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php');
     e2e_check($home['status'] === 200 && str_contains($home['body'], 'MyPress HTTP Test'), 'Public home page renders configured site title');
+    e2e_check(str_contains($home['headers'], 'X-Frame-Options: SAMEORIGIN') &&
+        str_contains($home['headers'], 'Referrer-Policy: strict-origin-when-cross-origin') &&
+        str_contains($home['headers'], 'Permissions-Policy:'), 'Public pages send baseline security headers');
     $seedPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=hello-world');
     e2e_check($seedPost['status'] === 200 && str_contains($seedPost['body'], 'سلام دنیا'), 'Seeded public post is readable');
 
