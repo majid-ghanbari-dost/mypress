@@ -138,4 +138,15 @@ check(!mp_update_order_status($shippedOrder, 'processing', $pdo), 'Shipped order
 check(!mp_update_order_status($shippedOrder, 'cancelled', $pdo), 'Shipped order cannot be auto-cancelled');
 check((int)$pdo->query('SELECT stock FROM products WHERE id=2')->fetchColumn() === 1, 'Rejected shipped cancellation leaves stock unchanged');
 
+$pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Rate Test','rate-test-product',100,10,'published')");
+for ($rateOrder = 1; $rateOrder <= 2; $rateOrder++) {
+    $_SESSION['cart'] = [3 => 1];
+    $rateCustomer = $customer;
+    if ($rateOrder === 1) $rateCustomer['customer_phone'] = '۰۹۱۲۱۲۳۴۵۶۷';
+    check(mp_checkout($rateCustomer, $pdo) > 0, 'COD checkout within the IP threshold succeeds');
+}
+$_SESSION['cart'] = [3 => 1];
+check(mp_checkout($customer, $pdo) === 0, 'COD checkout over the IP threshold is blocked');
+check((int)$pdo->query('SELECT stock FROM products WHERE id=3')->fetchColumn() === 8, 'Blocked COD checkout does not consume stock');
+
 echo "PASS: {$checks} checks\n";
