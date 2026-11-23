@@ -81,7 +81,8 @@ function mp_lang(): string {
         $_SESSION['lang'] = $language;
         return $language;
     }
-    return mp_option('site_lang', 'fa') ?: 'fa';
+    $configured = mp_option('site_lang', 'fa');
+    return in_array($configured, ['fa', 'en'], true) ? $configured : 'fa';
 }
 function mp_is_rtl(): bool { return mp_lang() === 'fa'; }
 function mp_dir(): string { return mp_is_rtl() ? 'rtl' : 'ltr'; }
@@ -103,6 +104,17 @@ function t(string $key): string {
     ];
     $dictionary = mp_lang() === 'en' ? $en : $fa;
     return $dictionary[$key] ?? $key;
+}
+
+function mp_safe_menu_url(string $url): string {
+    $url = trim($url);
+    if ($url === '' || preg_match('/[\\x00-\\x20\\\\]/', $url) || str_starts_with($url, '//')) return '#';
+    if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url)) {
+        $parts = parse_url($url);
+        if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) ||
+            !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) return '#';
+    }
+    return $url;
 }
 
 function mp_price(int $amount): string {

@@ -12,10 +12,10 @@ function mp_current_user(): ?array {
     return $user ?: null;
 }
 
-function mp_login(string $username, string $password): bool {
+function mp_login(string $username, string $password, ?PDO $connection = null): bool {
     $username = trim($username);
     if ($username === '' || strlen($username) > 190 || strlen($password) > 4096) return false;
-    $pdo = mp_pdo();
+    $pdo = $connection ?? mp_pdo();
     $secret = (string)(mp_config()['secret_key'] ?? '');
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
     $ipKey = hash_hmac('sha256', $ip, $secret !== '' ? $secret : __FILE__);

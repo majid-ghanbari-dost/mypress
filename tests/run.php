@@ -29,6 +29,10 @@ check(mp_can_edit_post($author, $ownDraft), 'Author can edit own draft');
 check(!mp_can_edit_post($author, $otherDraft), 'Author cannot edit another author draft');
 check(!mp_can_edit_post($author, $ownPublished), 'Author cannot edit published content');
 check(mp_can_edit_post($editor, $otherDraft), 'Editor can edit other authors content');
+check(mp_safe_menu_url('javascript:alert(1)') === '#', 'JavaScript menu URL is rejected');
+check(mp_safe_menu_url('//evil.example') === '#', 'Protocol-relative menu URL is rejected');
+check(mp_safe_menu_url('/?page=about') === '/?page=about', 'Internal menu URL is accepted');
+check(mp_safe_menu_url('https://example.com/path') === 'https://example.com/path', 'HTTPS menu URL is accepted');
 
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
     fwrite(STDERR, "pdo_sqlite is required for integration smoke tests.\n");
@@ -41,6 +45,16 @@ $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetc
 check(in_array('login_attempts', $tables, true), 'Login throttling schema exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
+
+$pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
+    ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
+$_SERVER['REMOTE_ADDR'] = '203.0.113.17';
+for ($attempt = 0; $attempt < 10; $attempt++) {
+    check(!mp_login('testadmin', 'incorrect-password', $pdo), 'Incorrect password is rejected');
+}
+check(!mp_login('testadmin', 'correct-horse-battery-staple', $pdo), 'Login throttle blocks correct password after repeated failures');
+$pdo->exec('DELETE FROM login_attempts');
+check(mp_login('testadmin', 'correct-horse-battery-staple', $pdo), 'Valid credentials succeed after throttle reset');
 
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Test','test-product',100,1,'published')");
 $pdo->exec("INSERT INTO products (name,slug,price,stock,status) VALUES ('Second','second-product',200,2,'published')");

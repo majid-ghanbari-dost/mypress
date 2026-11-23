@@ -13,7 +13,7 @@ $menus = mp_pdo()->query("SELECT * FROM menus ORDER BY position ASC")->fetchAll(
   <a class="logo" href="index.php"><?= e($siteTitle) ?></a>
   <p class="tagline"><?= e($siteDesc) ?></p>
   <nav class="main-nav">
-    <?php foreach ($menus as $m): ?><a href="<?= e($m['url']) ?>"><?= e($m['title']) ?></a><?php endforeach; ?>
+    <?php foreach ($menus as $m): ?><a href="<?= e(mp_safe_menu_url((string)$m['url'])) ?>"><?= e($m['title']) ?></a><?php endforeach; ?>
     <?php if (mp_module_enabled('shop')): ?><a href="index.php?cart=1">🛒 <?= t('cart') ?> (<?= count(mp_cart()) ?>)</a><?php endif; ?>
   </nav>
   <form class="search-form" method="get" action="index.php">
