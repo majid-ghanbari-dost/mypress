@@ -52,6 +52,11 @@ check($indexCount === 2, 'Security schema setup is idempotent and does not dupli
 check(in_array('schema_migrations', $tables, true), 'Schema migration ledger exists');
 check(in_array('orders', $tables, true), 'Shop order schema exists');
 check(in_array('order_items', $tables, true), 'Shop order item schema exists');
+$orderItemIndex = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_order_items_order_id'")->fetchColumn();
+check($orderItemIndex === 1, 'Order item lookup index is installed');
+mp_ensure_security_schema($pdo);
+$orderItemIndexAgain = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_order_items_order_id'")->fetchColumn();
+check($orderItemIndexAgain === 1, 'Order item index migration is idempotent');
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
