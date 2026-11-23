@@ -541,7 +541,8 @@ try {
     $filteredCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending&page=2');
     e2e_check($filteredCommentsPageTwo['status'] === 200 && substr_count($filteredCommentsPageTwo['body'], '<tr>') - 1 === 1, 'Filtered comment pagination returns the final matching comment');
     $approvedComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=approved');
-    e2e_check($approvedComments['status'] === 200 && substr_count($approvedComments['body'], '<tr>') === 1, 'Comment status filter handles an empty approved queue');
+    e2e_check($approvedComments['status'] === 200 && substr_count($approvedComments['body'], '<tr>') - 1 === 25 &&
+        str_contains($approvedComments['body'], 'صفحه 1 از 2'), 'Approved comment filter paginates its first 25 records');
     $emailComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=comment%40example.test');
     e2e_check($emailComments['status'] === 200 && substr_count($emailComments['body'], '<tr>') - 1 === 25, 'Comment search matches author email prefixes');
 
