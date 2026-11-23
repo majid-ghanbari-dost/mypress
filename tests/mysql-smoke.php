@@ -17,6 +17,17 @@ $pdo = new PDO($dsn, $user, $password, [
 ]);
 $pdo->exec('SET SESSION default_storage_engine=InnoDB');
 
+$longTextTypes = $pdo->prepare(
+    'SELECT data_type FROM information_schema.columns
+     WHERE table_schema=DATABASE() AND table_name=? AND column_name=?'
+);
+foreach ([['posts', 'content'], ['products', 'description']] as [$table, $column]) {
+    $longTextTypes->execute([$table, $column]);
+    if (strtolower((string)$longTextTypes->fetchColumn()) !== 'mediumtext') {
+        throw new RuntimeException("Expected {$table}.{$column} to use MEDIUMTEXT on MySQL");
+    }
+}
+
 // Simulate a MyPress 1.0 database: legacy 32-bit money columns on MyISAM tables.
 $pdo->exec("CREATE TABLE products (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -49,11 +60,11 @@ mp_create_tables($pdo);
 $throttleIndexes = $pdo->prepare(
     "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
      WHERE table_schema=DATABASE() AND table_name='login_attempts'
-       AND index_name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup')"
+       AND index_name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup','idx_login_attempts_attempted_at')"
 );
 $throttleIndexes->execute();
-if ((int)$throttleIndexes->fetchColumn() !== 2) {
-    throw new RuntimeException('Expected both MySQL login throttle indexes');
+if ((int)$throttleIndexes->fetchColumn() !== 3) {
+    throw new RuntimeException('Expected all MySQL login throttle and retention indexes');
 }
 mp_ensure_security_schema($pdo);
 $throttleIndexes->execute();
