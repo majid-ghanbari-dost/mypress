@@ -130,6 +130,8 @@ function mp_ensure_security_schema(PDO $pdo): void {
             ],
             'orders' => [
                 'idx_orders_created_id' => 'created_at, id',
+                'idx_orders_customer_name_created_id' => 'customer_name, created_at, id',
+                'idx_orders_customer_phone_created_id' => 'customer_phone, created_at, id',
             ],
         ];
         foreach ($adminIndexes as $tableName => $indexesForTable) {
