@@ -63,3 +63,29 @@ jobs:
           coverage: none
       - name: MySQL integration smoke tests
         run: php tests/mysql-smoke.php
+
+  package:
+    name: Build staging package
+    runs-on: ubuntu-latest
+    needs: [php, mysql]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble clean runtime package
+        run: |
+          mkdir -p dist/mypress
+          cp -R admin assets docs includes modules themes uploads dist/mypress/
+          cp .htaccess README.md config.sample.php index.php install.php dist/mypress/
+          cd dist
+          zip -qr mypress-2.0.0-staging.zip mypress
+          unzip -t mypress-2.0.0-staging.zip
+          sha256sum mypress-2.0.0-staging.zip > mypress-2.0.0-staging.zip.sha256
+      - name: Upload staging package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypress-2.0.0-staging
+          path: |
+            dist/mypress-2.0.0-staging.zip
+            dist/mypress-2.0.0-staging.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
