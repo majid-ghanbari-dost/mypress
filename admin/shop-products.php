@@ -28,6 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stock = max(0, (int)($_POST['stock'] ?? 0));
         $description = (string)($_POST['description'] ?? '');
         $categoryId = (int)($_POST['category_id'] ?? 0);
+        if ($categoryId > 0) {
+            $categoryCheck = $pdo->prepare("SELECT id FROM categories WHERE id=? AND type='product'");
+            $categoryCheck->execute([$categoryId]);
+            if (!$categoryCheck->fetchColumn()) $categoryId = 0;
+        }
         $image = '';
         if (!empty($_FILES['image']['tmp_name'])) $image = mp_upload_image($_FILES['image']) ?? '';
         if ($name !== '' && strlen($name) <= 255 && strlen($description) <= 2000000) {
