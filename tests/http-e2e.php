@@ -466,6 +466,16 @@ try {
     e2e_check(substr_count($commentsPageOne['body'], '<tr>') - 1 === 25 && str_contains($commentsPageOne['body'], 'صفحه 1 از 2'), 'Comment moderation paginates its first 25 records');
     $commentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?page=2');
     e2e_check(substr_count($commentsPageTwo['body'], '<tr>') - 1 === 1, 'Comment moderation renders only the remaining record on page two');
+    $filteredComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending');
+    e2e_check($filteredComments['status'] === 200 && substr_count($filteredComments['body'], '<tr>') - 1 === 25, 'Comment author prefix search and pending status filter compose correctly');
+    e2e_check(str_contains($filteredComments['body'], 'q=Comment+Fixture') && str_contains($filteredComments['body'], 'status=pending'), 'Comment pagination preserves active search and status filters');
+    $filteredCommentsPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=Comment+Fixture&status=pending&page=2');
+    e2e_check($filteredCommentsPageTwo['status'] === 200 && substr_count($filteredCommentsPageTwo['body'], '<tr>') - 1 === 1, 'Filtered comment pagination returns the final matching comment');
+    $approvedComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?status=approved');
+    e2e_check($approvedComments['status'] === 200 && substr_count($approvedComments['body'], '<tr>') === 1, 'Comment status filter handles an empty approved queue');
+    $emailComments = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/comments.php?q=comment%40example.test');
+    e2e_check($emailComments['status'] === 200 && substr_count($emailComments['body'], '<tr>') - 1 === 25, 'Comment search matches author email prefixes');
+
 
     // Put a committed row into an uncheckpointed WAL. The downloaded snapshot
     // must include it even though the main .sqlite file alone does not.
