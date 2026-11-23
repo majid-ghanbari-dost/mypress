@@ -2,9 +2,11 @@
 Options -Indexes
 DirectoryIndex index.php
 
-<Files "config.php">
+# Protect the live config and any installer temp/backup sibling (for example
+# config.php.installing) even if PHP execution is unavailable on the host.
+<FilesMatch "(?i)^config\.php(?:\..*)?$">
     Require all denied
-</Files>
+</FilesMatch>
 
 # Block private application data and dotfiles.
 RedirectMatch 404 ^/data(?:/|$)
