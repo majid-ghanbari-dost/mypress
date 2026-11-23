@@ -160,6 +160,27 @@ function mp_ensure_security_schema(PDO $pdo): void {
         $pdo->prepare($insertSql)->execute([$adminIndexMigration, date('Y-m-d H:i:s')]);
     }
 
+    // User administration searches by username, display name and email prefix,
+    // and optionally filters by role. Install indexes on existing databases once.
+    $userIndexMigration = 'admin-user-indexes-v1';
+    $userIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $userIndexCheck->execute([$userIndexMigration]);
+    if (!$userIndexCheck->fetchColumn() && mp_table_exists($pdo, 'users')) {
+        $userIndexes = [
+            'idx_users_username_created_id' => 'username(60), created_at, id',
+            'idx_users_display_name_created_id' => 'display_name(120), created_at, id',
+            'idx_users_email_created_id' => 'email(150), created_at, id',
+            'idx_users_role_created_id' => 'role, created_at, id',
+        ];
+        foreach ($userIndexes as $indexName => $columns) {
+            mp_ensure_index($pdo, 'users', $indexName, $columns);
+        }
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$userIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
     if ($mysql) {
