@@ -69,6 +69,19 @@ $orderItemIndex->execute();
 if ((int)$orderItemIndex->fetchColumn() !== 1) {
     throw new RuntimeException('Expected order_items order_id lookup index on MySQL');
 }
+$adminIndexNames = [
+    'idx_posts_type_created_id','idx_posts_author_type_created_id',
+    'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
+    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
+];
+$adminIndexQuery = $pdo->prepare(
+    'SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND index_name IN (' . implode(',', array_fill(0, count($adminIndexNames), '?')) . ')'
+);
+$adminIndexQuery->execute($adminIndexNames);
+if ((int)$adminIndexQuery->fetchColumn() !== count($adminIndexNames)) {
+    throw new RuntimeException('Expected all admin query indexes on MySQL');
+}
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
