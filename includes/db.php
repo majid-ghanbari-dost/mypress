@@ -12,6 +12,23 @@ function mp_config(): array {
     return $config;
 }
 
+function mp_index_exists(PDO $pdo, string $indexName): bool {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.statistics
+             WHERE table_schema=DATABASE() AND table_name=? AND index_name=?'
+        );
+        $statement->execute(['login_attempts', $indexName]);
+        return (int)$statement->fetchColumn() > 0;
+    }
+
+    $indexes = $pdo->query('PRAGMA index_list(login_attempts)')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($indexes as $index) {
+        if (($index['name'] ?? '') === $indexName) return true;
+    }
+    return false;
+}
+
 function mp_ensure_security_schema(PDO $pdo): void {
     $mysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
     $id = $mysql ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
@@ -21,10 +38,20 @@ function mp_ensure_security_schema(PDO $pdo): void {
         ip_key CHAR(64) NOT NULL,
         attempted_at DATETIME NOT NULL
     )");
-    try {
-        $pdo->exec('CREATE INDEX idx_login_attempts_lookup ON login_attempts (username_key, ip_key, attempted_at)');
-    } catch (PDOException $exception) {
-        // Index already exists on an initialized installation.
+    $indexes = [
+        'idx_login_attempts_lookup' => 'username_key, ip_key, attempted_at',
+        // The per-IP throttle query filters by ip_key without username_key.
+        // A separate leading-column index prevents a full scan as the table grows.
+        'idx_login_attempts_ip_lookup' => 'ip_key, attempted_at',
+    ];
+    foreach ($indexes as $indexName => $columns) {
+        if (mp_index_exists($pdo, $indexName)) continue;
+        try {
+            $pdo->exec("CREATE INDEX {$indexName} ON login_attempts ({$columns})");
+        } catch (PDOException $exception) {
+            // Another concurrent request may have created the same index.
+            if (!mp_index_exists($pdo, $indexName)) throw $exception;
+        }
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(64) PRIMARY KEY,
