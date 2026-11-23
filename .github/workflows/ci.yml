@@ -63,6 +63,24 @@ jobs:
           coverage: none
       - name: MySQL integration smoke tests
         run: php tests/mysql-smoke.php
+      - name: MySQL dump and restore rehearsal
+        env:
+          MYSQL_PWD: root
+        run: |
+          if ! command -v mysqldump >/dev/null 2>&1 || ! command -v mysql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y default-mysql-client
+          fi
+          mysqldump --host=127.0.0.1 --port=3306 --user=root --single-transaction --quick --default-character-set=utf8mb4 mypress_test > /tmp/mypress-mysql-backup.sql
+          mysql --host=127.0.0.1 --port=3306 --user=root -e "CREATE DATABASE mypress_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+          mysql --host=127.0.0.1 --port=3306 --user=root mypress_restore_test < /tmp/mypress-mysql-backup.sql
+          for table in users posts products orders order_items comments public_rate_limits; do
+            source_count=$(mysql --host=127.0.0.1 --port=3306 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM mypress_test.$table")
+            restored_count=$(mysql --host=127.0.0.1 --port=3306 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM mypress_restore_test.$table")
+            test "$source_count" = "$restored_count"
+          done
+          restored_content_type=$(mysql --host=127.0.0.1 --port=3306 --user=root --batch --skip-column-names -e "SELECT LOWER(data_type) FROM information_schema.columns WHERE table_schema='mypress_restore_test' AND table_name='posts' AND column_name='content'")
+          test "$restored_content_type" = "mediumtext"
 
   package:
     name: Build staging package
