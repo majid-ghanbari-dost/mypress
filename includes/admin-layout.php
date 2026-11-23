@@ -1,6 +1,11 @@
 <?php
 // Shared administration shell with navigation filtered by the current user's role.
 function mp_admin_header(string $title, array $user): void {
+    if (!headers_sent()) {
+        header('Cache-Control: no-store, private, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+    }
     $lang = mp_lang();
     $dir = mp_dir();
     $canEdit = mp_can($user, 'editor');
