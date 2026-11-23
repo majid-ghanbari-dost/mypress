@@ -43,7 +43,6 @@ $pdo->exec("CREATE TABLE order_items (
 
 // The migration must convert the legacy tables before transactional shop use.
 mp_create_tables($pdo);
-$pdo->beginTransaction();
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
 $adminId = (int)$pdo->lastInsertId();
@@ -59,6 +58,7 @@ if (!mp_delete_user($pdo, $secondAdminId, $adminId)) {
 if (mp_delete_user($pdo, $adminId, 999)) {
     throw new RuntimeException('Deletion of the final administrator unexpectedly succeeded');
 }
+$pdo->beginTransaction();
 mp_seed($pdo, $adminId);
 $pdo->prepare('INSERT INTO options (opt_key,opt_value) VALUES (?,?)')->execute(['site_title','MySQL Test']);
 $pdo->commit();
