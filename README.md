@@ -34,7 +34,7 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 5. Sign in at /admin/login.php.
 6. Confirm config.php and data/installed.lock exist and are not publicly downloadable.
 
-The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. Never commit config.php, database files, backups, or uploaded customer data.
+The installer creates a random application secret and initializes the security schema. MySQL DDL runs before the data transaction to account for MySQL's implicit DDL commits. The first MySQL schema initialization upgrades commerce tables to InnoDB and 64-bit money columns; the database account needs ALTER permission for this one-time migration. Never commit config.php, database files, backups, or uploaded customer data.
 
 ## Web server hardening
 
