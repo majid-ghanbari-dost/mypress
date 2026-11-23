@@ -20,6 +20,7 @@ function mp_security_headers(): void {
  * Only HMAC digests are stored; raw IP addresses and contact details are not persisted.
  */
 function mp_public_rate_limit(string $action, string $identity, int $limit, int $windowSeconds, ?PDO $connection = null): bool {
+    static $cleanupPerformed = false;
     if (!preg_match('/^[a-z0-9_-]{1,32}$/', $action) || $identity === '' || $limit < 1 || $windowSeconds < 1) {
         return false;
     }
@@ -54,9 +55,12 @@ function mp_public_rate_limit(string $action, string $identity, int $limit, int 
         $count->execute([$action, $subjectKey, $windowStart]);
         $allowed = (int)$count->fetchColumn() <= $limit;
 
-        // Keep only a short operational history; this predicate is indexed.
-        $cleanup = $pdo->prepare('DELETE FROM public_rate_limits WHERE window_start < ?');
-        $cleanup->execute([time() - 172800]);
+        // Run indexed retention cleanup at most once per request, not once per identity bucket.
+        if (!$cleanupPerformed) {
+            $cleanup = $pdo->prepare('DELETE FROM public_rate_limits WHERE window_start < ?');
+            $cleanup->execute([time() - 172800]);
+            $cleanupPerformed = true;
+        }
         return $allowed;
     } catch (Throwable $exception) {
         // Fail closed: if abuse protection cannot be evaluated, do not accept the action.
