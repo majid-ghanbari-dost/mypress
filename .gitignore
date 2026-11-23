@@ -1,8 +1,19 @@
-# MyPress — هرگز config و دیتابیس را کامیت نکنید
-config.php
-data/*.sqlite
-data/*.sqlite-journal
-data/installed.lock
-uploads/*
-!uploads/.htaccess
-!uploads/.gitkeep
+# Private configuration and runtime data
+/config.php
+/config.php.installing
+/data/*
+!/data/.htaccess
+!/data/.gitkeep
+/uploads/*
+!/uploads/.htaccess
+!/uploads/.gitkeep
+*.log
+*.sqlite
+*.sqlite-journal
+*.sql
+*.zip
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

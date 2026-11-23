@@ -1,88 +1,58 @@
-# MyPress — سیستم مدیریت وب‌سایت شخصی
+# MyPress 2.0 — Lightweight Persian-first CMS
 
-> مشابه وردپرس، ولی شخصی، سبک و بدون وابستگی خارجی. فقط PHP خالص 7.4+ / 8.x، بدون Composer، بدون CDN، دیتابیس پیش‌فرض SQLite.
+MyPress is a self-hosted PHP CMS for small business, portfolio and content websites. It includes a Persian RTL administration experience, posts/pages, media, users and roles, menus, comments, basic SEO and an optional simple COD shop.
 
-# MyPress — Personal Website CMS
+**Project status:** 2.0.0 hardening candidate. Do not treat this release as a fully audited WordPress replacement or a payment-ready commerce platform until the deployment and acceptance checklist below is complete.
 
-> Like WordPress, but personal, lightweight and dependency-free. Pure PHP 7.4+ / 8.x, no Composer, no CDN, SQLite by default.
+## Requirements
 
----
+- PHP 8.1 or newer
+- PDO
+- pdo_sqlite for SQLite, or pdo_mysql for MySQL/MariaDB
+- fileinfo for verified image uploads
+- HTTPS for any public deployment
 
-## فارسی
+## Included capabilities
 
-### امکانات
-- **هسته:** نوشته و برگه (پیش‌نویس/منتشرشده)، دسته و برچسب، رسانه (آپلود تصویر)، منوها، نظرات با تایید مدیر، کاربران با نقش مدیر/ویرایشگر/نویسنده، جستجو، داشبورد آمار.
-- **سئو (ماژول):** متا تایتل، توضیحات و کلمات کلیدی.
-- **فروشگاه (ماژول):** محصول (قیمت/موجودی/عکس/دسته)، سبد خرید، سفارش با وضعیت جدید/در حال پردازش/ارسال‌شده/لغو، کد تخفیف (نمونه: `WELCOME10` = ٪۱۰)، تسویه دستی / پرداخت در محل (COD) — بدون درگاه اجباری.
-- **ماژول‌ها:** `modules/` با `manifest.json`؛ فروشگاه، نظرات و سئو از پنل مدیریت (ماژول‌ها) فعال/غیرفعال می‌شوند.
-- **پشتیبان‌گیری:** دانلود JSON و دانلود فایل SQLite از پنل مدیریت.
-- **امنیت:** `password_hash`، نشست امن، CSRF، Prepared Statements، escape همه خروجی‌ها، ممنوعیت اجرای PHP در `uploads/`، عدم دسترسی وب به `config.php` و `data/`.
-- **زبان:** مدیریت پیش‌فرض فارسی راست‌چین (RTL) با امکان انگلیسی (`?lang=en` یا تنظیمات سایت).
+- Posts and pages with draft/published workflow
+- Admin, editor and author roles; authors are limited to their own drafts
+- CSRF protection and hardened session cookies
+- Login throttling (10 failed attempts per username/IP and 30 per IP in 15 minutes)
+- Image upload validation by file bytes, MIME and dimensions
+- SQLite and MySQL/MariaDB connection support
+- Shop with server-side price/stock validation, transactional order creation and atomic stock decrement
+- Order cancellation restores stock once; cancelled orders are terminal
+- Comments moderation, menus, media library and basic SEO metadata
+- PHP syntax checks and SQLite smoke tests in GitHub Actions
 
-### نصب محلی (تست)
-```bash
-cd mypress
-php -S localhost:8000
-# مرورگر: http://localhost:8000/install.php
-# عنوان سایت + کاربر/رمز/ایمیل مدیر را وارد کنید (SQLite پیش‌فرض)
-# سپس: http://localhost:8000/  و  http://localhost:8000/admin/login.php
-```
+## Install
 
-### نصب روی هاست اشتراکی
-1. همه فایل‌ها را در `public_html` (یا پوشه دامنه) آپلود کنید.
-2. به `https://domain.com/install.php` بروید و فرم را پر کنید.
-3. برای MySQL در همان فرم، هاست/نام دیتابیس/کاربر/رمز را وارد کنید (اگر هاست MySQL نمی‌خواهد، SQLite را انتخاب کنید).
-4. مطمئن شوید پوشه‌های `data/` و `uploads/` قابل نوشتن هستند (معمولاً 755).
-5. بعد از نصب، `install.php` قفل می‌شود؛ برای نصب دوباره `config.php` و `data/installed.lock` را حذف کنید.
-6. ورود مدیر: `https://domain.com/admin/login.php`
+1. Upload the project files to your PHP host.
+2. Ensure data/ and uploads/ are writable by the PHP process.
+3. Open /install.php over HTTPS.
+4. Create the first administrator with a unique password of at least 12 characters.
+5. Sign in at /admin/login.php.
+6. Confirm config.php and data/installed.lock exist and are not publicly downloadable.
 
-### ساختار
-```
-index.php            نمایش سایت
-install.php          ویزارد نصب + ساخت جداول + داده نمونه
-config.sample.php    نمونه پیکربندی (config.php در نصب ساخته می‌شود)
-includes/            db.php auth.php helpers.php router.php init.php admin-layout.php
-admin/               داشبورد، ورود/خروج، نوشته، برگه، دسته، رسانه، نظر، کاربر، منو، تنظیمات، ماژول، پشتیبان، فروشگاه
-themes/default/      قالب پیش‌فرض (header/footer/home/single/shop/product/cart)
-modules/shop|comments|seo/   ماژول‌ها + manifest.json
-assets/css|js/       فقط فایل محلی، بدون CDN
-uploads/  data/      رسانه‌ها / دیتابیس SQLite (دسترسی وب بسته است)
-```
+The installer creates a random application secret and initializes the security schema. Never commit config.php, database files, backups, or uploaded customer data.
 
-### نمونه داده در نصب
-یک نوشته («سلام دنیا!»)، یک برگه («درباره ما»)، یک محصول نمونه و کد تخفیف `WELCOME10`.
+## Web server hardening
 
-### نسخه
-`1.0.0` — نسخه در `config` ثابت است و سیستم برای کارکردن نیازی به آپدیت خارجی ندارد (به‌روزرسانی یعنی جایگزینی فایل‌ها با نسخه جدید همین ریپو).
+The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. Keep config.php, data/, backups, logs and private runtime files outside the public document root whenever possible.
 
----
+## Development checks
 
-## English
+    find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
+    php tests/run.php
 
-### Features
-- **Core:** posts & pages (draft/published), categories & tags, media upload, menus, moderated comments, users with admin/editor/author roles, search, dashboard stats.
-- **SEO (module):** meta title, description, keywords.
-- **Shop (module):** products (price/stock/image/category), cart, orders (new/processing/shipped/cancelled), discount codes (sample: `WELCOME10` = 10% off), manual checkout / Cash on Delivery — no payment gateway required.
-- **Modules:** `modules/` with `manifest.json`; shop, comments and SEO can be toggled from Admin → Modules.
-- **Backup:** JSON export and SQLite file download from Admin → Backup.
-- **Security:** `password_hash`, secure sessions, CSRF tokens, prepared statements, escaped output, no PHP execution in `uploads/`, no web access to `config.php` and `data/`.
-- **Language:** Persian RTL by default, English available (`?lang=en` or Site Settings).
+GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3.
 
-### Local test
-```bash
-cd mypress
-php -S localhost:8000
-# open http://localhost:8000/install.php, fill in site title + admin user/pass/email (SQLite default)
-# then http://localhost:8000/ and http://localhost:8000/admin/login.php
-```
+## Important limitations before production use
 
-### Install on shared hosting
-1. Upload all files to `public_html` (or the domain folder).
-2. Open `https://domain.com/install.php` and fill the form.
-3. For MySQL, enter host/db name/user/pass in the same form (or keep SQLite).
-4. Make `data/` and `uploads/` writable (usually 755).
-5. After install, `install.php` is locked; to reinstall delete `config.php` and `data/installed.lock`.
-6. Admin login: `https://domain.com/admin/login.php`
+- No independent penetration test or live hosting test has been performed by this repository change.
+- MySQL/MariaDB compatibility must be verified against the exact host/version and its SQL mode.
+- The shop currently supports manual/COD order handling only; it is not an online payment integration.
+- No visual page builder, mature third-party plugin marketplace, full multilingual content model, REST API, automated update service or revision history is included.
+- Backup/restore and migration procedures still require a documented operational test before production use.
 
-### Version
-`1.0.0` — the version is fixed in config; the system needs no external updates to keep working.
+MyPress is intentionally a focused lightweight CMS. Feature parity with WordPress is not a goal of this hardening release.
