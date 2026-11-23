@@ -44,8 +44,9 @@ The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does n
 
     find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
     php tests/run.php
+    php tests/http-e2e.php
 
-GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The installer is structured to avoid MySQL's implicit-commit behavior around DDL.
+GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The isolated HTTP E2E suite makes a temporary runtime copy and exercises installation, installer lock, public rendering, CSRF enforcement, admin login, content publication, valid/invalid image uploads, product creation, cart and COD checkout, JSON/SQLite backups, author permissions, draft privacy and POST-only logout. It requires the PHP cURL, pdo_sqlite and fileinfo extensions; CI runs it on PHP 8.1, 8.2 and 8.3. The installer is structured to avoid MySQL's implicit-commit behavior around DDL.
 
 ## Important limitations before production use
 
