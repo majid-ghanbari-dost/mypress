@@ -5,7 +5,7 @@ This guide describes an operator-run recovery procedure. MyPress currently provi
 ## Before the first production deployment
 
 - Choose and document the database type and the exact database path/name.
-- Keep `config.php`, database files, SQL dumps, JSON exports and uploaded customer data outside public download paths wherever possible.
+- Keep database files, SQL dumps, JSON exports and uploaded customer data outside public download paths wherever possible. The current installer writes `config.php` in the project root and the bootstrap expects it there; do not simply move it. Protect it with the supplied Apache/Nginx rules. Relocating it requires a deliberate, tested deployment-specific path/symlink arrangement.
 - Keep a second encrypted copy of backups outside the hosting account.
 - Record the PHP version, database engine/version, database charset and the owner/group needed for writable directories.
 - Rehearse the procedure on a staging copy before relying on it for production recovery.
@@ -43,7 +43,7 @@ mysqldump --single-transaction --default-character-set=utf8mb4 \
   -h DB_HOST -u DB_USER -p DB_NAME > mypress-backup.sql
 ```
 
-For restore, stop application writes, create/select the intended target database, and import the dump using the provider's supported MySQL client or phpMyAdmin. Preserve a copy of the matching `config.php`, confirm its database name/host/user, and restore `uploads/` separately. Reapply the required file ownership and verify the same application workflows listed in the SQLite section.
+For restore, stop application writes and create a new, empty target database with the same charset/collation as the source. Import the dump into that empty database using the provider's supported MySQL client or phpMyAdmin; do not import over the live database or an already-populated target. Preserve the original database and matching `config.php` as rollback copies. After validating the restored tables and application workflows, point the deployment configuration to the restored database. Restore `uploads/` separately, reapply the required file ownership and verify the same workflows listed in the SQLite section.
 
 The single-transaction option is intended for transactional InnoDB tables. If any legacy MyISAM tables remain, stop writes for the dump so the backup is consistent. MyPress's first MySQL schema initialization converts its commerce tables to InnoDB and upgrades monetary columns, but that migration is not a substitute for a backup.
 
