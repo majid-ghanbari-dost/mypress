@@ -1,5 +1,5 @@
 # Uploaded media must never be interpreted as executable scripts.
-# Avoid php_flag: it causes HTTP 500 on common PHP-FPM/FastCGI shared hosts.
+# Avoid mod_php-only directives: they cause HTTP 500 on common PHP-FPM/FastCGI shared hosts.
 RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phar .pht .phps
 <FilesMatch "(?i)\.(php[0-9]?|phtml|phar|pht|phps|cgi|pl)$">
     Require all denied
