@@ -103,6 +103,15 @@ function mp_ensure_security_schema(PDO $pdo): void {
         version VARCHAR(64) PRIMARY KEY,
         applied_at DATETIME NOT NULL
     )");
+    $windowType = $mysql ? 'BIGINT' : 'INTEGER';
+    $pdo->exec("CREATE TABLE IF NOT EXISTS public_rate_limits (
+        action_key VARCHAR(32) NOT NULL,
+        subject_key CHAR(64) NOT NULL,
+        window_start $windowType NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (action_key, subject_key, window_start)
+    )");
+    mp_ensure_index($pdo, 'public_rate_limits', 'idx_public_rate_limits_window_start', 'window_start');
 
     // Order administration loads line items by order_id. Add this index to
     // existing installations once, not just to newly created databases.
