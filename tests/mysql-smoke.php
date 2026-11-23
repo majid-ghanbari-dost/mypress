@@ -85,7 +85,7 @@ if ((int)$throttleIndexes->fetchColumn() !== 3) {
 }
 mp_ensure_security_schema($pdo);
 $throttleIndexes->execute();
-if ((int)$throttleIndexes->fetchColumn() !== 2) {
+if ((int)$throttleIndexes->fetchColumn() !== 3) {
     throw new RuntimeException('Repeated MySQL security schema setup changed throttle indexes');
 }
 $orderItemIndex = $pdo->prepare(
