@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($siteTitle === '' || strlen($siteTitle) > 150 ||
         !preg_match('/^[a-zA-Z0-9_.-]{3,60}$/', $adminUser) ||
         strlen($adminPass) < 12 || strlen($adminPass) > 4096 ||
-        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || !$mysqlConfigValid) {
+        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || strlen($adminEmail) > 150 || !$mysqlConfigValid) {
         $error = 'عنوان سایت، نام کاربری (۳ تا ۶۰ نویسه انگلیسی)، ایمیل یا رمز عبور معتبر نیست. رمز باید حداقل ۱۲ نویسه باشد.';
     } else {
         $dataDirectory = $root . '/data';
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <label>عنوان سایت <input name="site_title" required maxlength="150" value="سایت من"></label>
 <label>نام کاربری مدیر <input name="admin_user" required minlength="3" maxlength="60" pattern="[A-Za-z0-9_.-]+" dir="ltr" autocomplete="username"></label>
 <label>رمز عبور مدیر (حداقل ۱۲ نویسه) <input type="password" name="admin_pass" required minlength="12" maxlength="4096" dir="ltr" autocomplete="new-password"></label>
-<label>ایمیل مدیر <input type="email" name="admin_email" required dir="ltr"></label>
+<label>ایمیل مدیر <input type="email" name="admin_email" required maxlength="150" dir="ltr"></label>
 <label>پایگاه داده <select name="db_type" id="db_type"><option value="sqlite">SQLite</option><option value="mysql">MySQL / MariaDB</option></select></label>
 <div id="mysql-fields" style="display:none">
 <label>هاست <input name="db_host" value="localhost" dir="ltr"></label>
