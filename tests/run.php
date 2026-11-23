@@ -48,6 +48,8 @@ check(in_array('idx_login_attempts_lookup', $indexes, true), 'Username/IP thrott
 check(in_array('idx_login_attempts_ip_lookup', $indexes, true), 'Per-IP throttle index exists');
 check(in_array('idx_login_attempts_attempted_at', $indexes, true), 'Login attempt retention index exists');
 check(in_array('idx_comments_post_status_created_id', $indexes, true), 'Public comment lookup index exists');
+check(in_array('idx_public_rate_limits_window_start', $indexes, true), 'Public rate-limit retention index exists');
+check(in_array('public_rate_limits', $tables, true), 'Public rate-limit schema exists');
 mp_ensure_security_schema($pdo);
 $indexCount = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_login_attempts_lookup','idx_login_attempts_ip_lookup','idx_login_attempts_attempted_at')")->fetchColumn();
 check($indexCount === 3, 'Security schema setup is idempotent and does not duplicate throttle indexes');
@@ -98,6 +100,9 @@ check(mp_delete_user($pdo, $secondAdminId, $adminId), 'One of multiple administr
 $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$secondAdminId]);
 check(!mp_delete_user($pdo, 99999, $adminId), 'Unknown user cannot be deleted');
 $_SERVER['REMOTE_ADDR'] = '203.0.113.17';
+check(mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit allows the first request');
+check(mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit allows requests within its threshold');
+check(!mp_public_rate_limit('unit-test', '198.51.100.77', 2, 60, $pdo), 'Public action rate limit blocks requests beyond its threshold');
 for ($attempt = 0; $attempt < 10; $attempt++) {
     check(!mp_login('testadmin', 'incorrect-password', $pdo), 'Incorrect password is rejected');
 }
