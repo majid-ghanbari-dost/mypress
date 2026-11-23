@@ -299,7 +299,7 @@ try {
         'description' => 'Product created through admin HTTP form.',
     ]);
     e2e_check($createdProduct['status'] === 303, 'Administrator can create a shop product');
-    $publicProduct = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?product=http-e2e-product');
+    $publicProduct = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?product=HTTP-E2E-Product');
     e2e_check($publicProduct['status'] === 200 && str_contains($publicProduct['body'], 'HTTP E2E Product'), 'Created product is publicly visible');
 
     $cartAdd = e2e_request($baseUrl, $cookieAdmin, 'POST', 'index.php?cart=1', [
