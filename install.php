@@ -5,12 +5,13 @@ error_reporting(E_ALL);
 $root = __DIR__;
 $configFile = $root . '/config.php';
 $lockFile = $root . '/data/installed.lock';
+require_once $root . '/includes/helpers.php';
+mp_security_headers();
 if (file_exists($configFile) || file_exists($lockFile)) {
     http_response_code(403);
     exit('MyPress قبلاً نصب شده است. برای نصب مجدد، ابتدا از اطلاعات نسخه فعلی پشتیبان تهیه کنید.');
 }
 require_once $root . '/includes/db.php';
-require_once $root . '/includes/helpers.php';
 mp_session_start();
 $error = '';
 $done = false;
