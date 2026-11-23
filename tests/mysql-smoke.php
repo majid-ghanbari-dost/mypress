@@ -84,6 +84,15 @@ $adminIndexQuery->execute($adminIndexNames);
 if ((int)$adminIndexQuery->fetchColumn() !== count($adminIndexNames)) {
     throw new RuntimeException('Expected all admin query indexes on MySQL');
 }
+$productNamePrefix = $pdo->prepare(
+    "SELECT sub_part FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND table_name='products'
+       AND index_name='idx_products_name_created_id' AND column_name='name'"
+);
+$productNamePrefix->execute();
+if ((int)$productNamePrefix->fetchColumn() !== 191) {
+    throw new RuntimeException('Expected a 191-character prefix index for product names on MySQL');
+}
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
