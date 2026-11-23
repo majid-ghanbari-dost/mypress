@@ -287,6 +287,7 @@ try {
     e2e_check($goodLogin['status'] === 303 && str_contains($goodLogin['headers'], 'Location: index.php'), 'Valid administrator login redirects to dashboard');
     $dashboard = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/index.php');
     e2e_check($dashboard['status'] === 200 && str_contains($dashboard['body'], 'داشبورد'), 'Authenticated administrator can open dashboard');
+    e2e_check(str_contains($dashboard['headers'], 'Cache-Control: no-store') && str_contains($dashboard['headers'], 'Pragma: no-cache'), 'Private admin pages are not cacheable');
 
     // Content creation, publication and public rendering.
     $editor = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/post-edit.php?type=post');
