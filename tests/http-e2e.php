@@ -325,12 +325,43 @@ try {
     $ordersPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php');
     e2e_check($ordersPage['status'] === 200 && str_contains($ordersPage['body'], 'HTTP Test Buyer'), 'Administrator can view the created order');
 
+    $orderId = (int)$orderMatch[1];
+    $processing = e2e_request($baseUrl, $cookieAdmin, 'POST', 'admin/shop-orders.php', [
+        'csrf' => e2e_csrf($ordersPage),
+        'order_id' => (string)$orderId,
+        'status' => 'processing',
+    ]);
+    e2e_check($processing['status'] === 303, 'Administrator can move a new order into processing');
+    $ordersPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php');
+    e2e_check(str_contains($ordersPage['body'], 'در حال پردازش'), 'Order processing status is visible in the admin list');
+    $cancelled = e2e_request($baseUrl, $cookieAdmin, 'POST', 'admin/shop-orders.php', [
+        'csrf' => e2e_csrf($ordersPage),
+        'order_id' => (string)$orderId,
+        'status' => 'cancelled',
+    ]);
+    e2e_check($cancelled['status'] === 303, 'Administrator can cancel an eligible order through the HTTP route');
+    $orderDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
+    $orderDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $orderState = $orderDb->query('SELECT status FROM orders WHERE id=' . $orderId)->fetchColumn();
+    $restoredStock = $orderDb->query('SELECT stock FROM products WHERE id=2')->fetchColumn();
+    e2e_check($orderState === 'cancelled' && (int)$restoredStock === 2, 'Order cancellation restores stock exactly once');
+
     // Backups must be downloadable and must not disclose password hashes.
     $jsonBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=json');
     e2e_check($jsonBackup['status'] === 200 && str_contains($jsonBackup['headers'], 'application/json'), 'Administrator can download JSON backup');
     e2e_check(str_contains($jsonBackup['body'], 'HTTP E2E Product') && !str_contains($jsonBackup['body'], 'password_hash'), 'JSON backup contains business data but omits password hashes');
     $sqliteBackup = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/backup.php?download=sqlite');
     e2e_check($sqliteBackup['status'] === 200 && str_starts_with($sqliteBackup['body'], 'SQLite format 3'), 'Administrator can download a valid SQLite database backup');
+
+    $restoredPath = $tempRoot . '/restored.sqlite';
+    e2e_check(file_put_contents($restoredPath, $sqliteBackup['body']) === strlen($sqliteBackup['body']), 'SQLite backup bytes can be written as a restore candidate');
+    $restoredDb = new PDO('sqlite:' . $restoredPath);
+    $restoredDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $integrity = $restoredDb->query('PRAGMA integrity_check')->fetchColumn();
+    $restoredOrder = $restoredDb->query('SELECT status FROM orders WHERE id=' . $orderId)->fetchColumn();
+    $restoredStock = $restoredDb->query('SELECT stock FROM products WHERE id=2')->fetchColumn();
+    e2e_check($integrity === 'ok', 'Downloaded SQLite backup passes PRAGMA integrity_check after restore');
+    e2e_check($restoredOrder === 'cancelled' && (int)$restoredStock === 2, 'Restored SQLite backup preserves order and inventory state');
 
     // Role boundary checks use a second, independent browser session.
     $db = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
