@@ -181,6 +181,25 @@ function mp_ensure_security_schema(PDO $pdo): void {
         $pdo->prepare($insertSql)->execute([$userIndexMigration, date('Y-m-d H:i:s')]);
     }
 
+    // Comment moderation filters by status and author/email prefix.
+    $commentIndexMigration = 'admin-comment-indexes-v1';
+    $commentIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $commentIndexCheck->execute([$commentIndexMigration]);
+    if (!$commentIndexCheck->fetchColumn() && mp_table_exists($pdo, 'comments')) {
+        $commentIndexes = [
+            'idx_comments_status_created_id' => 'status, created_at, id',
+            'idx_comments_author_created_id' => 'author(120), created_at, id',
+            'idx_comments_email_created_id' => 'email(150), created_at, id',
+        ];
+        foreach ($commentIndexes as $indexName => $columns) {
+            mp_ensure_index($pdo, 'comments', $indexName, $columns);
+        }
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$commentIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
     if ($mysql) {
