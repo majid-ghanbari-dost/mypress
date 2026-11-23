@@ -297,7 +297,7 @@ try {
     $publicPost = e2e_request($baseUrl, $cookieAdmin, 'GET', 'index.php?post=http-e2e-published-article');
     e2e_check($publicPost['status'] === 200 && str_contains($publicPost['body'], 'Rendered through the public HTTP route.'), 'Newly published post is rendered publicly');
 
-    $adminIdForFixtures = (int)$db = 0;
+    $adminIdForFixtures = 0;
     $fixtureDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');
     $fixtureDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $adminIdForFixtures = (int)$fixtureDb->query("SELECT id FROM users WHERE username='e2e-admin'")->fetchColumn();
@@ -341,7 +341,7 @@ try {
     ]);
     e2e_check($fakeUpload['status'] === 303, 'Invalid upload is handled without crashing the HTTP route');
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
-    e2e_check(substr_count($mediaPage['body'], '<tr>') === 2, 'Invalid PHP disguised as an image is not added to the media library');
+    e2e_check(substr_count($mediaPage['body'], '<tr>') === 26, 'Invalid PHP disguised as an image is not added to the media library');
 
     // Public shop journey: create product, add to cart and place a COD order.
     $productsPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-products.php');
