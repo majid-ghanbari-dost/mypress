@@ -28,6 +28,7 @@ jobs:
       - name: PHP syntax
         run: find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
       - name: Smoke tests
+        if: hashFiles('tests/run.php') != ''
         run: php tests/run.php
   mysql:
     if: github.event_name != 'push' || github.ref != 'refs/heads/main'
