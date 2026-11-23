@@ -49,6 +49,15 @@ check(in_array('order_items', $tables, true), 'Shop order item schema exists');
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
+$adminId = (int)$pdo->lastInsertId();
+check(!mp_can_delete_user($pdo, $adminId, $adminId), 'Administrator cannot delete own account');
+check(!mp_can_delete_user($pdo, $adminId, 999), 'Last administrator account cannot be deleted');
+$pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
+    ->execute(['secondadmin', password_hash('another-long-password', PASSWORD_DEFAULT), 'second@example.com', 'Second Admin', 'admin']);
+$secondAdminId = (int)$pdo->lastInsertId();
+check(mp_can_delete_user($pdo, $secondAdminId, $adminId), 'One of multiple administrator accounts can be deleted');
+$pdo->prepare('DELETE FROM users WHERE id=?')->execute([$secondAdminId]);
+check(!mp_can_delete_user($pdo, 99999, $adminId), 'Unknown user cannot be deleted');
 $_SERVER['REMOTE_ADDR'] = '203.0.113.17';
 for ($attempt = 0; $attempt < 10; $attempt++) {
     check(!mp_login('testadmin', 'incorrect-password', $pdo), 'Incorrect password is rejected');

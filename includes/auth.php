@@ -90,6 +90,19 @@ function mp_can_edit_post(array $user, array $post): bool {
     );
 }
 
+function mp_can_delete_user(PDO $pdo, int $targetId, int $actorId): bool {
+    if ($targetId < 1 || $targetId === $actorId) return false;
+    $statement = $pdo->prepare('SELECT role FROM users WHERE id=?');
+    $statement->execute([$targetId]);
+    $targetRole = $statement->fetchColumn();
+    if ($targetRole === false) return false;
+    if ($targetRole === 'admin') {
+        $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+        if ($adminCount <= 1) return false;
+    }
+    return true;
+}
+
 function mp_require_role(string $role): array {
     $user = mp_require_login();
     if (!mp_can($user, $role)) {
