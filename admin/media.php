@@ -43,42 +43,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
 
 $perPage = 25;
 $isEditor = mp_can($user, 'editor');
+$search = trim((string)($_GET['q'] ?? ''));
+$search = function_exists('mb_substr') ? mb_substr($search, 0, 100, 'UTF-8') : substr($search, 0, 100);
+$uploaderFilter = '';
 if ($isEditor) {
-    $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM media')->fetchColumn();
-} else {
-    $count = $pdo->prepare('SELECT COUNT(*) FROM media WHERE uploaded_by=?');
-    $count->execute([(int)$user['id']]);
-    $totalRows = (int)$count->fetchColumn();
+    $rawUploader = filter_var($_GET['uploader'] ?? '', FILTER_VALIDATE_INT);
+    if ($rawUploader !== false && $rawUploader !== null && $rawUploader > 0) {
+        $uploaderFilter = (string)$rawUploader;
+    }
 }
+
+$where = [];
+$params = [];
+if (!$isEditor) {
+    $where[] = 'm.uploaded_by = ?';
+    $params[] = (int)$user['id'];
+}
+if ($search !== '') {
+    $where[] = '(m.filename LIKE ? OR m.original_name LIKE ?)';
+    $prefix = $search . '%';
+    $params[] = $prefix;
+    $params[] = $prefix;
+}
+if ($uploaderFilter !== '') {
+    $where[] = 'm.uploaded_by = ?';
+    $params[] = (int)$uploaderFilter;
+}
+$whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+$countQuery = $pdo->prepare('SELECT COUNT(*) FROM media m' . $whereSql);
+$countQuery->execute($params);
+$totalRows = (int)$countQuery->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(mp_admin_page_number(), $totalPages);
 $offset = ($page - 1) * $perPage;
-if ($isEditor) {
-    $statement = $pdo->prepare('SELECT * FROM media ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
-} else {
-    $statement = $pdo->prepare('SELECT * FROM media WHERE uploaded_by=? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
-    $statement->bindValue(1, (int)$user['id'], PDO::PARAM_INT);
-    $statement->bindValue(2, $perPage, PDO::PARAM_INT);
-    $statement->bindValue(3, $offset, PDO::PARAM_INT);
+
+$statement = $pdo->prepare(
+    'SELECT m.*, u.display_name AS uploader_name, u.username AS uploader_username
+     FROM media m LEFT JOIN users u ON u.id=m.uploaded_by' . $whereSql .
+    ' ORDER BY m.created_at DESC, m.id DESC LIMIT ? OFFSET ?'
+);
+foreach ($params as $index => $value) {
+    $statement->bindValue($index + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
 }
-if ($isEditor) {
-    $statement->bindValue(1, $perPage, PDO::PARAM_INT);
-    $statement->bindValue(2, $offset, PDO::PARAM_INT);
-}
+$statement->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
+$statement->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
 $statement->execute();
 $rows = $statement->fetchAll();
+
+$paginationQuery = [];
+if ($search !== '') $paginationQuery['q'] = $search;
+if ($uploaderFilter !== '') $paginationQuery['uploader'] = $uploaderFilter;
+$uploaders = [];
+if ($isEditor) {
+    $uploaders = $pdo->query('SELECT id,username,display_name FROM users ORDER BY display_name,id')->fetchAll();
+}
+
 mp_admin_header(t('media'), $user);
-mp_admin_pagination($page, $totalPages, 'media.php');
+mp_admin_pagination($page, $totalPages, 'media.php', $paginationQuery);
 ?>
 <form method="post" enctype="multipart/form-data"><?= mp_csrf_field() ?>
 <label>انتخاب تصویر <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required></label>
 <button class="btn" type="submit">آپلود</button></form>
-<table class="table"><tr><th>پیش‌نمایش</th><th>نام فایل</th><th>حجم</th><th>تاریخ</th><th>عملیات</th></tr>
+<form method="get" class="admin-filters">
+<label>جستجوی نام فایل <input type="search" name="q" value="<?= e($search) ?>" maxlength="100"></label>
+<?php if ($isEditor): ?><label>بارگذاری‌شده توسط
+<select name="uploader"><option value="">همه کاربران</option>
+<?php foreach ($uploaders as $uploader): ?><option value="<?= (int)$uploader['id'] ?>" <?= $uploaderFilter === (string)$uploader['id'] ? 'selected' : '' ?>><?= e($uploader['display_name'] . ' (' . $uploader['username'] . ')') ?></option><?php endforeach; ?>
+</select></label><?php endif; ?>
+<button class="btn" type="submit">اعمال فیلتر</button>
+<a class="btn" href="media.php">پاک‌کردن</a>
+</form>
+<table class="table"><tr><th>پیش‌نمایش</th><th>نام فایل</th><th>حجم</th><th>بارگذار</th><th>تاریخ</th><th>عملیات</th></tr>
 <?php foreach ($rows as $media): ?><tr>
 <td><img src="../uploads/<?= e(basename((string)$media['filename'])) ?>" style="max-height:60px" alt=""></td>
 <td dir="ltr"><?= e($media['filename']) ?><br><small><?= e($media['original_name']) ?></small></td>
-<td><?= number_format((int)$media['size']) ?> بایت</td><td><?= e($media['created_at']) ?></td>
+<td><?= number_format((int)$media['size']) ?> بایت</td>
+<td><?= e($media['uploader_name'] ?: $media['uploader_username'] ?: '—') ?></td>
+<td><?= e($media['created_at']) ?></td>
 <td><form method="post" style="display:inline" data-confirm="حذف شود؟"><?= mp_csrf_field() ?><input type="hidden" name="delete_id" value="<?= (int)$media['id'] ?>"><button class="btn btn-danger btn-small" type="submit">حذف</button></form></td></tr><?php endforeach; ?></table>
-<?php mp_admin_pagination($page, $totalPages, 'media.php'); ?>
+<?php mp_admin_pagination($page, $totalPages, 'media.php', $paginationQuery); ?>
 <script src="../assets/js/admin.js"></script>
 <?php mp_admin_footer(); ?>

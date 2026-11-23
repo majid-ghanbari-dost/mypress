@@ -344,13 +344,21 @@ try {
     e2e_check(count($uploadedFiles) === 1 && preg_match('/^[a-f0-9]{32}\.png$/', basename($uploadedFiles[0]) ) === 1, 'Uploaded image is stored under a random non-user-controlled filename');
 
     $mediaFixture = $fixtureDb->prepare('INSERT INTO media (filename,original_name,mime,size,uploaded_by) VALUES (?,?,?,?,?)');
-    for ($fixture = 1; $fixture <= 25; $fixture++) {
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
         $mediaFixture->execute([basename($uploadedFiles[0]), 'fixture-' . $fixture . '.png', 'image/png', 68, $adminIdForFixtures]);
     }
     $mediaListPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
     e2e_check(substr_count($mediaListPageOne['body'], '<tr>') - 1 === 25 && str_contains($mediaListPageOne['body'], 'صفحه 1 از 2'), 'Media library paginates its first 25 records');
     $mediaListPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?page=2');
-    e2e_check(substr_count($mediaListPageTwo['body'], '<tr>') - 1 === 1, 'Media library renders only the remaining record on page two');
+    e2e_check(substr_count($mediaListPageTwo['body'], '<tr>') - 1 === 2, 'Media library renders the remaining two records on page two');
+    $filteredMedia = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?q=fixture-&uploader=' . $adminIdForFixtures);
+    e2e_check($filteredMedia['status'] === 200 && substr_count($filteredMedia['body'], '<tr>') - 1 === 25, 'Media filename search and uploader filter compose correctly');
+    e2e_check(str_contains($filteredMedia['body'], 'q=fixture-') && str_contains($filteredMedia['body'], 'uploader=' . $adminIdForFixtures), 'Media pagination preserves search and uploader filters');
+    $filteredMediaPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?q=fixture-&uploader=' . $adminIdForFixtures . '&page=2');
+    e2e_check($filteredMediaPageTwo['status'] === 200 && substr_count($filteredMediaPageTwo['body'], '<tr>') - 1 === 1, 'Filtered media pagination returns the final matching upload');
+    $emptyMediaSearch = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php?q=missing-file-prefix');
+    e2e_check($emptyMediaSearch['status'] === 200 && substr_count($emptyMediaSearch['body'], '<tr>') === 1, 'Media search handles no matching files');
+
 
     $mediaPage = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/media.php');
     $fakePath = $tempRoot . '/fake.php';
@@ -545,6 +553,8 @@ try {
         'password' => 'E2E-Author-Password-2026!',
     ]);
     e2e_check($authorLogin['status'] === 303, 'Author can authenticate in an independent session');
+    $authorMedia = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/media.php');
+    e2e_check($authorMedia['status'] === 200 && !str_contains($authorMedia['body'], 'fixture-1.png'), 'Author media library remains scoped to the author own uploads');
     $authorDashboard = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/index.php');
     e2e_check($authorDashboard['status'] === 200 && str_contains($authorDashboard['body'], 'نوشته‌های من'), 'Author sees the role-scoped dashboard');
     $authorProducts = e2e_request($baseUrl, $cookieAuthor, 'GET', 'admin/shop-products.php');

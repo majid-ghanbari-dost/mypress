@@ -200,6 +200,24 @@ function mp_ensure_security_schema(PDO $pdo): void {
         $pdo->prepare($insertSql)->execute([$commentIndexMigration, date('Y-m-d H:i:s')]);
     }
 
+    // Media library search uses original and generated filename prefixes.
+    $mediaIndexMigration = 'admin-media-search-indexes-v1';
+    $mediaIndexCheck = $pdo->prepare('SELECT version FROM schema_migrations WHERE version=?');
+    $mediaIndexCheck->execute([$mediaIndexMigration]);
+    if (!$mediaIndexCheck->fetchColumn() && mp_table_exists($pdo, 'media')) {
+        $mediaIndexes = [
+            'idx_media_filename_created_id' => 'filename(191), created_at, id',
+            'idx_media_original_name_created_id' => 'original_name(191), created_at, id',
+        ];
+        foreach ($mediaIndexes as $indexName => $columns) {
+            mp_ensure_index($pdo, 'media', $indexName, $columns);
+        }
+        $insertSql = $mysql
+            ? 'INSERT IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)'
+            : 'INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (?,?)';
+        $pdo->prepare($insertSql)->execute([$mediaIndexMigration, date('Y-m-d H:i:s')]);
+    }
+
     // Existing MySQL installations used 32-bit INTEGER for money fields.
     // Upgrade them once so large order totals cannot overflow on MySQL.
     if ($mysql) {
