@@ -68,6 +68,8 @@ function mp_create_tables(PDO $pdo): void {
     $isMysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
     $auto = $isMysql ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
     $text = 'TEXT';
+    // MySQL versions before 8.0.13 reject defaults on TEXT/BLOB columns.
+    $textDefault = $isMysql ? 'TEXT NOT NULL' : "TEXT NOT NULL DEFAULT ''";
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id $auto, username VARCHAR(60) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL,
         email VARCHAR(150) NOT NULL, display_name VARCHAR(120) NOT NULL,

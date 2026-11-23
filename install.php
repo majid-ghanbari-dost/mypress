@@ -22,11 +22,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $adminPass = (string)($_POST['admin_pass'] ?? '');
     $adminEmail = trim((string)($_POST['admin_email'] ?? ''));
     $dbType = ($_POST['db_type'] ?? 'sqlite') === 'mysql' ? 'mysql' : 'sqlite';
+    $dbHost = trim((string)($_POST['db_host'] ?? 'localhost'));
+    $dbName = trim((string)($_POST['db_name'] ?? 'mypress'));
+    $dbUser = trim((string)($_POST['db_user'] ?? 'root'));
+    $mysqlConfigValid = $dbType !== 'mysql' || (
+        preg_match('/^(?:[a-zA-Z0-9.-]+|\\[[0-9a-fA-F:]+\\])(?::[0-9]{1,5})?$/', $dbHost) &&
+        preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbName) &&
+        preg_match('/^[a-zA-Z0-9_.@-]{1,128}$/', $dbUser)
+    );
 
     if ($siteTitle === '' || strlen($siteTitle) > 150 ||
         !preg_match('/^[a-zA-Z0-9_.-]{3,60}$/', $adminUser) ||
         strlen($adminPass) < 12 || strlen($adminPass) > 4096 ||
-        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+        !filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || !$mysqlConfigValid) {
         $error = 'عنوان سایت، نام کاربری (۳ تا ۶۰ نویسه انگلیسی)، ایمیل یا رمز عبور معتبر نیست. رمز باید حداقل ۱۲ نویسه باشد.';
     } else {
         $dataDirectory = $root . '/data';
@@ -36,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $config = [
                 'db_type' => $dbType,
                 'db_path' => $dataDirectory . '/mypress.sqlite',
-                'db_host' => trim((string)($_POST['db_host'] ?? 'localhost')),
-                'db_name' => trim((string)($_POST['db_name'] ?? 'mypress')),
-                'db_user' => trim((string)($_POST['db_user'] ?? 'root')),
+                'db_host' => $dbHost,
+                'db_name' => $dbName,
+                'db_user' => $dbUser,
                 'db_pass' => (string)($_POST['db_pass'] ?? ''),
                 'db_charset' => 'utf8mb4',
                 'secret_key' => bin2hex(random_bytes(32)),
@@ -54,15 +62,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Unable to write configuration.');
                 }
                 $configWritten = true;
+                @chmod($configFile, 0640);
                 $pdo = mp_pdo();
-                $pdo->beginTransaction();
+                // MySQL commits DDL implicitly, so create tables before opening the data transaction.
                 mp_create_tables($pdo);
+                $pdo->beginTransaction();
                 $insert = $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')");
                 $insert->execute([$adminUser, password_hash($adminPass, PASSWORD_DEFAULT), $adminEmail, $adminUser]);
                 $adminId = (int)$pdo->lastInsertId();
                 mp_seed($pdo, $adminId);
-                $pdo->commit();
-
                 mp_set_option('site_title', $siteTitle);
                 mp_set_option('site_description', 'سایت شخصی من با MyPress');
                 mp_set_option('site_lang', 'fa');
@@ -73,9 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (file_put_contents($lockFile, date('c'), LOCK_EX) === false) {
                     throw new RuntimeException('Unable to create installation lock.');
                 }
+                @chmod($lockFile, 0640);
+                $pdo->commit();
                 $done = true;
             } catch (Throwable $exception) {
                 if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
+                @unlink($lockFile);
                 if ($configWritten) @unlink($configFile);
                 @unlink($temporaryConfig);
                 $error = 'نصب کامل نشد. تنظیمات دیتابیس و مجوز نوشتن پوشه data را بررسی کنید؛ جزئیات فنی در پاسخ عمومی نمایش داده نمی‌شود.';
