@@ -57,6 +57,20 @@ check($orderItemIndex === 1, 'Order item lookup index is installed');
 mp_ensure_security_schema($pdo);
 $orderItemIndexAgain = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_order_items_order_id'")->fetchColumn();
 check($orderItemIndexAgain === 1, 'Order item index migration is idempotent');
+$adminIndexNames = [
+    'idx_posts_type_created_id','idx_posts_author_type_created_id',
+    'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
+    'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
+];
+$adminIndexCount = (int)$pdo->query(
+    "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('" . implode("','", $adminIndexNames) . "')"
+)->fetchColumn();
+check($adminIndexCount === count($adminIndexNames), 'Admin query indexes are installed on SQLite');
+mp_ensure_security_schema($pdo);
+$adminIndexCountAgain = (int)$pdo->query(
+    "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('" . implode("','", $adminIndexNames) . "')"
+)->fetchColumn();
+check($adminIndexCountAgain === count($adminIndexNames), 'Admin query index migration is idempotent');
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)")
     ->execute(['testadmin', password_hash('correct-horse-battery-staple', PASSWORD_DEFAULT), 'test@example.com', 'Test Admin', 'admin']);
