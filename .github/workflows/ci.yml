@@ -23,13 +23,16 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_sqlite, fileinfo, mbstring
+          extensions: pdo_sqlite, fileinfo, mbstring, curl
           coverage: none
       - name: PHP syntax
         run: find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
       - name: Smoke tests
         if: hashFiles('tests/run.php') != ''
         run: php tests/run.php
+      - name: HTTP end-to-end tests
+        if: hashFiles('tests/http-e2e.php') != ''
+        run: php tests/http-e2e.php
   mysql:
     name: MySQL 8 integration
     runs-on: ubuntu-latest
