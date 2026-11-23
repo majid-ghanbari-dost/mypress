@@ -205,6 +205,30 @@ try {
     $install = e2e_request($baseUrl, $cookieAdmin, 'GET', 'install.php');
     e2e_check($install['status'] === 200 && str_contains($install['body'], 'نصب MyPress'), 'Installer page is served over HTTP');
     $installToken = e2e_csrf($install);
+
+    // Simulate another PHP worker holding the installer mutex. A second
+    // installation request must fail closed without creating config or DB state.
+    $installDataDirectory = $docRoot . '/data';
+    if (!is_dir($installDataDirectory) && !mkdir($installDataDirectory, 0750, true)) {
+        throw new RuntimeException('Cannot create installer lock fixture directory.');
+    }
+    $heldInstallLock = fopen($installDataDirectory . '/.install.lock', 'c');
+    if ($heldInstallLock === false || !flock($heldInstallLock, LOCK_EX | LOCK_NB)) {
+        throw new RuntimeException('Cannot acquire installer lock fixture.');
+    }
+    $blockedInstall = e2e_request($baseUrl, $cookieAdmin, 'POST', 'install.php', [
+        'csrf' => $installToken,
+        'site_title' => 'MyPress HTTP Test',
+        'admin_user' => 'e2e-admin',
+        'admin_pass' => 'E2E-Admin-Password-2026!',
+        'admin_email' => 'admin@example.test',
+        'db_type' => 'sqlite',
+    ]);
+    flock($heldInstallLock, LOCK_UN);
+    fclose($heldInstallLock);
+    e2e_check($blockedInstall['status'] === 409, 'Concurrent installer request is rejected while another worker owns the lock');
+    e2e_check(!is_file($docRoot . '/config.php') && !is_file($docRoot . '/data/installed.lock'), 'Rejected concurrent installer request creates no partial installation');
+
     $installed = e2e_request($baseUrl, $cookieAdmin, 'POST', 'install.php', [
         'csrf' => $installToken,
         'site_title' => 'MyPress HTTP Test',

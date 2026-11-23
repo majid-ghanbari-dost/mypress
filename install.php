@@ -41,6 +41,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!is_dir($dataDirectory) && !mkdir($dataDirectory, 0750, true) && !is_dir($dataDirectory)) {
             $error = 'ساخت پوشه داده امکان‌پذیر نیست.';
         } else {
+            // Serialize installation attempts across PHP workers. Re-check the
+            // completion markers only after acquiring the lock to close the race
+            // between the initial GET/POST guard and configuration creation.
+            $installLockHandle = @fopen($dataDirectory . '/.install.lock', 'c');
+            if ($installLockHandle === false) {
+                $error = 'قفل نصب ایجاد نشد؛ مجوز نوشتن پوشه data را بررسی کنید.';
+            } elseif (!flock($installLockHandle, LOCK_EX | LOCK_NB)) {
+                fclose($installLockHandle);
+                http_response_code(409);
+                $error = 'فرایند نصب دیگری در حال اجراست؛ چند لحظه بعد دوباره تلاش کنید.';
+            } else {
+                if (file_exists($configFile) || file_exists($lockFile)) {
+                    flock($installLockHandle, LOCK_UN);
+                    fclose($installLockHandle);
+                    http_response_code(403);
+                    exit('MyPress قبلاً نصب شده است.');
+                }
+
             $config = [
                 'db_type' => $dbType,
                 'db_path' => $dataDirectory . '/mypress.sqlite',
@@ -91,6 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @unlink($temporaryConfig);
                 $error = 'نصب کامل نشد. تنظیمات دیتابیس و مجوز نوشتن پوشه data را بررسی کنید؛ جزئیات فنی در پاسخ عمومی نمایش داده نمی‌شود.';
                 error_log('MyPress installation error: ' . $exception->getMessage());
+            }
+                flock($installLockHandle, LOCK_UN);
+                fclose($installLockHandle);
             }
         }
     }
