@@ -379,6 +379,20 @@ try {
     $restoredStock = $orderDb->query('SELECT stock FROM products WHERE id=2')->fetchColumn();
     e2e_check($orderState === 'cancelled' && (int)$restoredStock === 2, 'Order cancellation restores stock exactly once');
 
+    // Fill the order list beyond one page and verify bounded rendering.
+    $paginationInsert = $orderDb->prepare(
+        "INSERT INTO orders (customer_name,customer_phone,customer_address,total,status) VALUES (?,?,?,?, 'new')"
+    );
+    for ($fixture = 1; $fixture <= 26; $fixture++) {
+        $paginationInsert->execute(['Pagination Fixture ' . $fixture, '09120000000', 'Fixture Address', 1000]);
+    }
+    $ordersPageOne = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php');
+    e2e_check($ordersPageOne['status'] === 200 && substr_count($ordersPageOne['body'], '<div class="post-card">') === 25, 'Order administration renders only 25 records on the first page');
+    e2e_check(str_contains($ordersPageOne['body'], 'صفحه 1 از 2'), 'Order administration exposes the first pagination page');
+    $ordersPageTwo = e2e_request($baseUrl, $cookieAdmin, 'GET', 'admin/shop-orders.php?page=2');
+    e2e_check($ordersPageTwo['status'] === 200 && substr_count($ordersPageTwo['body'], '<div class="post-card">') === 2, 'Order administration renders only remaining records on the second page');
+    e2e_check(str_contains($ordersPageTwo['body'], 'HTTP Test Buyer'), 'Second order page retains the older real order and its details');
+
     // Put a committed row into an uncheckpointed WAL. The downloaded snapshot
     // must include it even though the main .sqlite file alone does not.
     $walDb = new PDO('sqlite:' . $docRoot . '/data/mypress.sqlite');

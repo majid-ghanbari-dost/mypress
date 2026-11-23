@@ -60,6 +60,15 @@ $throttleIndexes->execute();
 if ((int)$throttleIndexes->fetchColumn() !== 2) {
     throw new RuntimeException('Repeated MySQL security schema setup changed throttle indexes');
 }
+$orderItemIndex = $pdo->prepare(
+    "SELECT COUNT(*) FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND table_name='order_items'
+       AND index_name='idx_order_items_order_id'"
+);
+$orderItemIndex->execute();
+if ((int)$orderItemIndex->fetchColumn() !== 1) {
+    throw new RuntimeException('Expected order_items order_id lookup index on MySQL');
+}
 
 $pdo->prepare("INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?, 'admin')")
     ->execute(['mysql-test', password_hash('long-test-password', PASSWORD_DEFAULT), 'mysql@example.test', 'MySQL Test']);
