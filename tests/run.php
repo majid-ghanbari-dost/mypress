@@ -59,6 +59,7 @@ $orderItemIndexAgain = (int)$pdo->query("SELECT COUNT(*) FROM sqlite_master WHER
 check($orderItemIndexAgain === 1, 'Order item index migration is idempotent');
 $adminIndexNames = [
     'idx_posts_type_created_id','idx_posts_author_type_created_id',
+    'idx_posts_type_status_created_id','idx_posts_author_type_status_created_id','idx_posts_title_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
     'idx_products_created_id','idx_products_status_created_id','idx_orders_created_id',
 ];
