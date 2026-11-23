@@ -102,7 +102,7 @@ $adminIndexNames = [
     'idx_posts_type_status_created_id','idx_posts_author_type_status_created_id','idx_posts_title_created_id',
     'idx_comments_created_id','idx_media_created_id','idx_media_owner_created_id',
     'idx_products_created_id','idx_products_status_created_id',
-    'idx_products_name_created_id','idx_products_stock_created_id','idx_orders_created_id',
+    'idx_products_name_created_id','idx_products_stock_created_id','idx_orders_created_id','idx_orders_status_created_id',
     'idx_orders_customer_name_created_id','idx_orders_customer_phone_created_id',
 ];
 $adminIndexQuery = $pdo->prepare(
