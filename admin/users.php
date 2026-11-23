@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = in_array($_POST['role'] ?? '', ['admin','editor','author'], true) ? $_POST['role'] : 'author';
         if (preg_match('/^[a-zA-Z0-9_.-]{3,60}$/', $username) &&
             strlen($password) >= 12 && strlen($password) <= 4096 &&
-            filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            filter_var($email, FILTER_VALIDATE_EMAIL) && strlen($email) <= 150) {
             try {
                 $pdo->prepare('INSERT INTO users (username,password_hash,email,display_name,role) VALUES (?,?,?,?,?)')
                     ->execute([$username,password_hash($password,PASSWORD_DEFAULT),$email,$username,$role]);
@@ -83,7 +83,7 @@ mp_admin_pagination($page, $totalPages, 'users.php', $paginationQuery);
 <form method="post"><?= mp_csrf_field() ?>
 <label>نام کاربری <input name="username" required minlength="3" maxlength="60" pattern="[A-Za-z0-9_.-]+" dir="ltr"></label>
 <label>رمز عبور (حداقل ۱۲ نویسه) <input type="password" name="password" required minlength="12" maxlength="4096" dir="ltr"></label>
-<label>ایمیل <input type="email" name="email" required dir="ltr"></label>
+<label>ایمیل <input type="email" name="email" required maxlength="150" dir="ltr"></label>
 <label>نقش <select name="role"><option value="author">نویسنده</option><option value="editor">ویرایشگر</option><option value="admin">مدیر</option></select></label>
 <button class="btn" type="submit">ساخت کاربر</button></form>
 <form method="get" class="admin-filters">
