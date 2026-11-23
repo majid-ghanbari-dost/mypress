@@ -12,9 +12,10 @@ function mp_get_product(string $slug): ?array {
     return $statement->fetch() ?: null;
 }
 
-function mp_list_products(int $limit = 24): array {
+function mp_list_products(int $limit = 24, ?PDO $connection = null): array {
+    $pdo = $connection ?? mp_pdo();
     $limit = max(1, min(100, $limit));
-    $statement = mp_pdo()->prepare(
+    $statement = $pdo->prepare(
         'SELECT id,name,slug,price,stock,image,created_at FROM products WHERE status=\'published\' ORDER BY created_at DESC LIMIT ?'
     );
     $statement->bindValue(1, $limit, PDO::PARAM_INT);
@@ -56,12 +57,13 @@ function mp_cart_add(int $productId, int $qty = 1): void {
     $_SESSION['cart'] = $cart;
 }
 
-function mp_cart_items(): array {
+function mp_cart_items(?PDO $connection = null): array {
+    $pdo = $connection ?? mp_pdo();
     $cart = mp_cart();
     if (!$cart) return [];
     $ids = array_keys($cart);
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $statement = mp_pdo()->prepare(
+    $statement = $pdo->prepare(
         "SELECT id,name,price,stock FROM products WHERE status='published' AND id IN ($placeholders)"
     );
     $statement->execute($ids);
