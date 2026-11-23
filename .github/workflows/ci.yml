@@ -29,3 +29,33 @@ jobs:
         run: find . -type f -name '*.php' -not -path './uploads/*' -print0 | xargs -0 -n1 php -l
       - name: Smoke tests
         run: php tests/run.php
+  mysql:
+    name: MySQL 8 integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mypress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_TEST_DSN: mysql:host=127.0.0.1;dbname=mypress_test;charset=utf8mb4
+      MYSQL_TEST_USER: root
+      MYSQL_TEST_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo, mbstring
+          coverage: none
+      - name: MySQL integration smoke tests
+        run: php tests/mysql-smoke.php
