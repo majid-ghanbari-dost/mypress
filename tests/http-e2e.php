@@ -350,6 +350,9 @@ try {
     $commentProbe->execute(['HTTP Commenter']);
     e2e_check((int)$commentProbe->fetchColumn() === 5, 'Public comment rate limit prevents the sixth pending comment');
     $commentProbe->closeCursor();
+    $cleanupCommentProbe = $commentDbProbe->prepare("DELETE FROM comments WHERE author=?");
+    $cleanupCommentProbe->execute(['HTTP Commenter']);
+    $cleanupCommentProbe->closeCursor();
     $commentDbProbe = null;
 
     $adminIdForFixtures = 0;
