@@ -4,6 +4,8 @@ MyPress is a self-hosted PHP CMS for small business, portfolio and content websi
 
 **Project status:** 2.0.0 hardening release. Automated PHP and MySQL checks pass; this is not a penetration-tested or deployment-certified WordPress replacement or payment-ready commerce platform.
 
+**Staging verification:** [Read the MyPress 2.0.0 staging verification record](docs/2.0.0-staging-verification.md) for the exact CI run, five successful jobs, staging artifact ID, independently checked ZIP integrity and SHA-256, and the remaining deployment gates.
+
 ## Requirements
 
 - PHP 8.1 or newer
@@ -47,7 +49,7 @@ See [docs/backup-restore.md](docs/backup-restore.md) for SQLite restore, MySQL d
 
 ## Web server hardening
 
-The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. The current installer writes `config.php` in the project root and the bootstrap expects it there; protect direct access with the supplied Apache/Nginx rules. Relocating it requires a tested deployment-specific path/symlink arrangement. Keep the SQLite database, backups, logs and other private runtime files outside the public document root whenever possible.
+The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does not read .htaccess.** Nginx operators must apply the equivalent restrictions in docs/nginx.conf.example and verify them on their actual virtual host. The current installer writes config.php in the project root and the bootstrap expects it there; protect direct access with the supplied Apache/Nginx rules. Relocating it requires a tested deployment-specific path/symlink arrangement. Keep the SQLite database, backups, logs and other private runtime files outside the public document root whenever possible.
 
 ## Development checks
 
@@ -55,7 +57,7 @@ The root .htaccess and data/.htaccess protect Apache deployments. **Nginx does n
     php tests/run.php
     php tests/http-e2e.php
 
-GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables and a CLI dump/restore rehearsal into an empty database. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The isolated HTTP E2E suite makes a temporary runtime copy and exercises installation, installer lock, public rendering, CSRF enforcement, admin login, content publication, valid/invalid image uploads, product creation, cart and COD checkout, JSON/SQLite backups, author permissions, draft privacy and POST-only logout. It requires the PHP cURL, pdo_sqlite and fileinfo extensions; CI runs it on PHP 8.1, 8.2 and 8.3. The installer is structured to avoid MySQL's implicit-commit behavior around DDL. After all test jobs pass on `main`, CI builds a clean `mypress-2.0.0-staging.zip` runtime package and a SHA-256 checksum as a 14-day Actions artifact; use this for staging validation, not as evidence of production deployment.
+GitHub Actions runs these checks on PHP 8.1, 8.2 and 8.3 and runs MySQL 8 integration tests for installer transactions, schema migrations, large monetary values and order/stock behavior, including an upgrade fixture from legacy MyISAM tables and a CLI dump/restore rehearsal into an empty database. The SQLite smoke suite covers role ownership, protection against deleting the final administrator, login throttling, safe menu URLs, failed/valid checkout, stock rollback, order cancellation idempotency and shipped-order restrictions. The isolated HTTP E2E suite makes a temporary runtime copy and exercises installation, installer lock, public rendering, CSRF enforcement, admin login, content publication, valid/invalid image uploads, product creation, cart and COD checkout, JSON/SQLite backups, author permissions, draft privacy and POST-only logout. It requires the PHP cURL, pdo_sqlite and fileinfo extensions; CI runs it on PHP 8.1, 8.2 and 8.3. The installer is structured to avoid MySQL's implicit-commit behavior around DDL. After all test jobs pass on main, CI builds a clean mypress-2.0.0-staging.zip runtime package and a SHA-256 checksum as a 14-day Actions artifact; use this for staging validation, not as evidence of production deployment.
 
 ## Important limitations before production use
 
